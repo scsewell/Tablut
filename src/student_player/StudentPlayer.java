@@ -2,6 +2,7 @@ package student_player;
 
 import java.util.HashSet;
 import java.util.Random;
+import java.util.Stack;
 
 import boardgame.Move;
 import tablut.TablutBoardState;
@@ -19,16 +20,16 @@ public class StudentPlayer extends TablutPlayer
      * The time allowed to think during the first turn in nanoseconds.
      */
     private static final long START_TURN_TIMEOUT = (long)(1.98 * 1000000000);
-
+    
     /**
      * The time allowed to think during turns following the first turn in
      * nanoseconds.
      */
     private static final long TURN_TIMEOUT       = (long)(1.98 * 1000000000);
-
+    
     private long              m_stopTime;
     private long              m_nodeCount;
-
+    
     /**
      * Associate this player implementation with my student ID.
      */
@@ -36,76 +37,58 @@ public class StudentPlayer extends TablutPlayer
     {
         super("260617022");
     }
-
+    
     public static void main(String[] args)
     {
-        BitBoard b = new BitBoard();
-        b.set(4, 8);
-        b.set(3, 7);
-        b.set(5, 7);
-        b.set(2, 6);
-        b.set(6, 6);
-        b.set(1, 5);
-        b.set(7, 5);
-        b.set(0, 4);
-        b.set(8, 4);
-        b.set(0, 3);
-        b.set(8, 3);
-        b.set(1, 2);
-        b.set(7, 2);
-        b.set(2, 1);
-        b.set(6, 1);
-        b.set(3, 1);
-        b.set(5, 1);
-        b.set(4, 2);
-
-        b.set(6, 4);
-
-        // long time0 = 0;
-        // for (int game = 0; game < 3000; game++)
-        // {
-        // TablutBoardState board = new TablutBoardState();
-        //
-        // for (int i = 0; i < 50; i++)
-        // {
-        // State state = new State(board);
-        //
-        // if (!state.isTerminal())
-        // {
-        // long t = System.nanoTime();
-        // time0 += System.nanoTime() - t;
-        // }
-        //
-        // if (!board.gameOver())
-        // {
-        // board.processMove((TablutMove)board.getRandomMove());
-        // }
-        // }
-        // }
-        // Log.Info(time0 / 1000000000.0f);
+        Random rand = new Random(100);
         TablutBoardState initialState = new TablutBoardState();
-
-        StudentPlayer player = new StudentPlayer();
-        player.chooseMove(initialState);
-
-        Random rand = new Random();
-
+        
+        // StudentPlayer player = new StudentPlayer();
+        // player.chooseMove(initialState);
+        
+        for (int game = 0; game < 1; game++)
+        {
+            State state = new State(initialState);
+            Stack<Long> moves = new Stack<Long>();
+            while (!state.isTerminal())
+            {
+                int[] legalMoves = state.getAllLegalMoves();
+                int move = legalMoves[rand.nextInt(legalMoves.length)];
+                long moveResult = state.makeMove(move);
+                moves.push(moveResult);
+            }
+            while (!moves.isEmpty())
+            {
+                long move = moves.pop();
+                state.unmakeMove(move);
+            }
+        }
         long time0 = 0;
+        long time1 = 0;
         for (int game = 0; game < 1000; game++)
         {
             State state = new State(initialState);
+            Stack<Long> moves = new Stack<Long>();
             while (!state.isTerminal())
             {
-                //Log.Info(state);
+                int[] legalMoves = state.getAllLegalMoves();
+                int move = legalMoves[rand.nextInt(legalMoves.length)];
                 long t = System.nanoTime();
-                state.computeAllLegalMoves();
+                long moveResult = state.makeMove(move);
                 time0 += System.nanoTime() - t;
-                state.makeMove(state.legalMoves[rand.nextInt(state.legalMoveCount)]);
+                moves.push(moveResult);
             }
-            //Log.Info(state);
+            while (!moves.isEmpty())
+            {
+                long move = moves.pop();
+                long t = System.nanoTime();
+                state.unmakeMove(move);
+                time1 += System.nanoTime() - t;
+            }
         }
         Log.Info(time0 / 1000000000.0f);
-
+        Log.Info(time1 / 1000000000.0f);
+        
         // long time1 = 0;
         // for (int game = 0; game < 10000; game++)
         // {
@@ -118,22 +101,10 @@ public class StudentPlayer extends TablutPlayer
         // }
         // }
         // Log.Info(time1 / 1000000000.0f);
-        // state.calculateHash();
-        // state.calculateHash();
-        // state.calculateHash();
-        //
-        // long time1 = 0;
-        // long t = System.nanoTime();
-        // for (int i = 0; i < 10000000; i++)
-        // {
-        // state.calculateHash();
-        // }
-        // time1 += System.nanoTime() - t;
-        // Log.Info(time1 / 1000000000.0f);
-
+        
         Log.printMemoryUsage();
     }
-
+    
     /**
      * Decides on a move to submit.
      */
@@ -142,96 +113,60 @@ public class StudentPlayer extends TablutPlayer
         // get the timeout for this turn
         int turn = boardState.getTurnNumber();
         long timeout = (turn == 1 ? START_TURN_TIMEOUT : TURN_TIMEOUT);
-
+        
         // get the time we want to have a result by
         m_stopTime = System.nanoTime() + timeout;
-
+        
         State state = new State(boardState);
-
-        m_nodeCount = 0;
+        
         int depth = 0;
-        Log.Info("Turns left: " + state.remainingTurns());
-        while (System.nanoTime() < m_stopTime && depth <= state.remainingTurns())
+        Log.Info("Turns left: " + state.getRemainingTurns());
+        while (System.nanoTime() < m_stopTime && depth <= state.getRemainingTurns())
         {
+            m_nodeCount = 0;
             NegamaxSearch(state, depth);
             Log.Info(String.format("depth completed: %s  nodes expanded: %s", depth, m_nodeCount));
             depth++;
         }
-
+        
         Move myMove = boardState.getRandomMove();
         Log.printMemoryUsage();
         return myMove;
     }
-
+    
     private void NegamaxSearch(State state, int maxDepth)
     {
         Negamax(state, maxDepth, Integer.MIN_VALUE, Integer.MAX_VALUE, 1);
     }
-
+    
     private int Negamax(State state, int depth, int a, int b, int sign)
     {
         m_nodeCount++;
-
+        
         if (depth == 0 || state.isTerminal())
         {
             return sign * state.evaluate();
         }
-
+        
         int bestValue = Integer.MIN_VALUE;
-
-        state.computeAllLegalMoves();
-        for (int i = 0; i < state.legalMoveCount; i++)
+        
+        int[] legalMoves = state.getAllLegalMoves();
+        for (int i = 0; i < legalMoves.length; i++)
         {
             if (System.nanoTime() > m_stopTime)
             {
                 return bestValue;
             }
-
-            State child = new State(state);
-            child.makeMove(state.legalMoves[i]);
-
-            int value = -Negamax(child, depth - 1, -b, -a, -sign);
+            
+            long move = state.makeMove(legalMoves[i]);
+            int value = -Negamax(state, depth - 1, -b, -a, -sign);
+            state.unmakeMove(move);
+            
             bestValue = Math.max(bestValue, value);
             a = Math.max(a, value);
             if (a >= b)
             {
-                break;
-            }
-        }
-        return bestValue;
-    }
-
-    private void NegamaxSearchOld(TablutBoardState state, int maxDepth)
-    {
-        NegamaxOld(state, maxDepth, Integer.MIN_VALUE, Integer.MAX_VALUE, 1);
-    }
-
-    private int NegamaxOld(TablutBoardState state, int depth, int a, int b, int sign)
-    {
-        m_nodeCount++;
-
-        if (depth == 0 || state.gameOver())
-        {
-            return 0;// sign * state.evaluate();
-        }
-
-        int bestValue = Integer.MIN_VALUE;
-        for (TablutMove move : state.getAllLegalMoves())
-        {
-            if (System.nanoTime() > m_stopTime)
-            {
-                return bestValue;
-            }
-
-            TablutBoardState child = (TablutBoardState)state.clone();
-            child.processMove(move);
-
-            int value = -NegamaxOld(child, depth - 1, -b, -a, -sign);
-            bestValue = Math.max(bestValue, value);
-            a = Math.max(a, value);
-            if (a >= b)
-            {
-                break;
+                // break;
             }
         }
         return bestValue;

@@ -27,24 +27,24 @@ public class BitBoard
 {
     private static final int ROW_2_SHIFT = 9;
     private static final int ROW_3_SHIFT = 18;
-
+    
     private static final int ROW_MASK_1  = 0x000001FF;
     private static final int ROW_MASK_2  = ROW_MASK_1 << ROW_2_SHIFT;
     private static final int ROW_MASK_3  = ROW_MASK_1 << ROW_3_SHIFT;
-
+    
     private static final int BITS_MASK   = ROW_MASK_1 | ROW_MASK_2 | ROW_MASK_3;
-
+    
     public int               d0;
     public int               d1;
     public int               d2;
-
+    
     /**
      * Creates an empty BitBoard.
      */
     public BitBoard()
     {
     }
-
+    
     /**
      * Constructs a new BitBoard from bitmask integers.
      * 
@@ -61,7 +61,7 @@ public class BitBoard
         this.d1 = BITS_MASK & d1;
         this.d2 = BITS_MASK & d2;
     }
-
+    
     /**
      * Clones a BitBoard.
      * 
@@ -74,7 +74,7 @@ public class BitBoard
         d1 = board.d1;
         d2 = board.d2;
     }
-
+    
     /**
      * Copies the values from BitBoard.
      * 
@@ -87,7 +87,7 @@ public class BitBoard
         d1 = board.d1;
         d2 = board.d2;
     }
-
+    
     /**
      * Checks if no bits on the board are set.
      * 
@@ -97,7 +97,7 @@ public class BitBoard
     {
         return (d0 | d1 | d2) == 0;
     }
-
+    
     /**
      * Checks if all bits on the board are set.
      * 
@@ -107,7 +107,7 @@ public class BitBoard
     {
         return (d0 & d1 & d2) == BITS_MASK;
     }
-
+    
     /**
      * Computes the cardinality of the board.
      * 
@@ -117,7 +117,7 @@ public class BitBoard
     {
         return Integer.bitCount(d0) + Integer.bitCount(d1) + Integer.bitCount(d2);
     }
-
+    
     /**
      * Get the value of a bit for given square on the board.
      * 
@@ -131,7 +131,7 @@ public class BitBoard
         int col = square % 9;
         return getValue(col, row);
     }
-
+    
     /**
      * Get the value of a bit for given square on the board.
      * 
@@ -166,7 +166,7 @@ public class BitBoard
         }
         return false;
     }
-
+    
     /**
      * Get the values contained in a row of the board.
      * 
@@ -199,7 +199,7 @@ public class BitBoard
         }
         return -1;
     }
-
+    
     /**
      * Clears all bits on the board.
      */
@@ -209,7 +209,7 @@ public class BitBoard
         d1 = 0;
         d2 = 0;
     }
-
+    
     /**
      * Clears the bit for a given square on the board.
      * 
@@ -222,7 +222,7 @@ public class BitBoard
         int col = square % 9;
         clear(col, row);
     }
-
+    
     /**
      * Clears the bit for a given square on the board.
      * 
@@ -264,7 +264,7 @@ public class BitBoard
                 break;
         }
     }
-
+    
     /**
      * Sets the bit for a given square on the board.
      * 
@@ -277,16 +277,16 @@ public class BitBoard
         int col = square % 9;
         set(col, row);
     }
-
+    
     /**
      * Sets the bit for a given square on the board.
      * 
-     * @param row
-     *            The square's row.
      * @param col
      *            The square's column.
+     * @param row
+     *            The square's row.
      */
-    public void set(int row, int col)
+    public void set(int col, int row)
     {
         switch (row)
         {
@@ -319,7 +319,7 @@ public class BitBoard
                 break;
         }
     }
-
+    
     /**
      * Sets the bit for a given row on the board.
      * 
@@ -361,7 +361,7 @@ public class BitBoard
                 break;
         }
     }
-
+    
     /**
      * Mirrors the board vertically.
      */
@@ -374,7 +374,7 @@ public class BitBoard
         d1 = ((d1 << ROW_3_SHIFT) & ROW_MASK_3) | (d1 & ROW_MASK_2) | (d1 >> ROW_3_SHIFT);
         d2 = ((temp << ROW_3_SHIFT) & ROW_MASK_3) | (temp & ROW_MASK_2) | (temp >> ROW_3_SHIFT);
     }
-
+    
     /**
      * Mirrors the board horizontally.
      */
@@ -382,21 +382,21 @@ public class BitBoard
     {
         final int k1_0 = 0b00000_001001001_001001001_001001001;
         final int k1_1 = k1_0 << 1;
-
+        
         // switch the first and third columns in each of the 3 groups of 3 columns
         d0 = ((d0 >> 2) & k1_0) | (d0 & k1_1) | ((d0 & k1_0) << 2);
         d1 = ((d1 >> 2) & k1_0) | (d1 & k1_1) | ((d1 & k1_0) << 2);
         d2 = ((d2 >> 2) & k1_0) | (d2 & k1_1) | ((d2 & k1_0) << 2);
-
+        
         final int k2_0 = 0b00000_000000111_000000111_000000111;
         final int k2_1 = k2_0 << 3;
-
+        
         // switch the first and third groups of 3 columns
         d0 = ((d0 >> 6) & k2_0) | (d0 & k2_1) | ((d0 & k2_0) << 6);
         d1 = ((d1 >> 6) & k2_0) | (d1 & k2_1) | ((d1 & k2_0) << 6);
         d2 = ((d2 >> 6) & k2_0) | (d2 & k2_1) | ((d2 & k2_0) << 6);
     }
-
+    
     /**
      * Reflects the board around the line row = col.
      */
@@ -406,26 +406,26 @@ public class BitBoard
         final int k1_1 = 0b00000_000000000_100100100_010010010;
         final int k1_2 = k1_1 << 8;
         final int k1_3 = 0b00000_001001001_000000000_100100100;
-
+        
         // reflect the values in each of the 9 3x3 regions of the board
         d0 = (d0 & k1_0) | ((d0 & k1_1) << 8) | ((d0 & k1_2) >> 8) | ((d0 & k1_3) >> 16) | ((d0 & k1_3) << 16);
         d1 = (d1 & k1_0) | ((d1 & k1_1) << 8) | ((d1 & k1_2) >> 8) | ((d1 & k1_3) >> 16) | ((d1 & k1_3) << 16);
         d2 = (d2 & k1_0) | ((d2 & k1_1) << 8) | ((d2 & k1_2) >> 8) | ((d2 & k1_3) >> 16) | ((d2 & k1_3) << 16);
-
+        
         final int k2_0 = 0b00000_000000111_000000111_000000111;
         final int k2_1 = k2_0 << 3;
         final int k2_2 = k2_0 << 6;
-
+        
         int t0 = d0;
         int t1 = d1;
         int t2 = d2;
-
+        
         // swap each the 9 3x3 regions of the board across the line of reflection
         d0 = (t0 & k2_0) | ((t1 & k2_0) << 3) | ((t2 & k2_0) << 6);
         d1 = (t1 & k2_1) | ((t0 & k2_1) >> 3) | ((t2 & k2_1) << 3);
         d2 = (t2 & k2_2) | ((t1 & k2_2) >> 3) | ((t0 & k2_2) >> 6);
     }
-
+    
     /**
      * Reflects the board around the line row = -col.
      */
@@ -435,26 +435,26 @@ public class BitBoard
         final int k1_1 = 0b00000_000000000_001001001_010010010;
         final int k1_2 = k1_1 << 10;
         final int k1_3 = 0b00000_100100100_000000000_001001001;
-
+        
         // reflect the values in each of the 9 3x3 regions of the board
         d0 = (d0 & k1_0) | ((d0 & k1_1) << 10) | ((d0 & k1_2) >> 10) | ((d0 & k1_3) >> 20) | ((d0 & k1_3) << 20);
         d1 = (d1 & k1_0) | ((d1 & k1_1) << 10) | ((d1 & k1_2) >> 10) | ((d1 & k1_3) >> 20) | ((d1 & k1_3) << 20);
         d2 = (d2 & k1_0) | ((d2 & k1_1) << 10) | ((d2 & k1_2) >> 10) | ((d2 & k1_3) >> 20) | ((d2 & k1_3) << 20);
-
+        
         final int k2_0 = 0b00000_000000111_000000111_000000111;
         final int k2_1 = k2_0 << 3;
         final int k2_2 = k2_0 << 6;
-
+        
         int t0 = d0;
         int t1 = d1;
         int t2 = d2;
-
+        
         // swap each the 9 3x3 regions of the board across the line of reflection
         d0 = (t0 & k2_2) | ((t1 & k2_2) >> 3) | ((t2 & k2_2) >> 6);
         d1 = (t1 & k2_1) | ((t0 & k2_1) << 3) | ((t2 & k2_1) >> 3);
         d2 = (t2 & k2_0) | ((t1 & k2_0) << 3) | ((t0 & k2_0) << 6);
     }
-
+    
     /**
      * Rotates this board -90 degrees
      */
@@ -463,7 +463,7 @@ public class BitBoard
         mirrorDiagonal();
         mirrorVertical();
     }
-
+    
     /**
      * Rotates this board 90 degrees
      */
@@ -472,7 +472,7 @@ public class BitBoard
         mirrorVertical();
         mirrorDiagonal();
     }
-
+    
     /**
      * Rotates this board 180 degrees
      */
@@ -481,7 +481,7 @@ public class BitBoard
         mirrorVertical();
         mirrorHorzontal();
     }
-
+    
     /**
      * Applies a transformation to the board.
      * 
@@ -515,7 +515,7 @@ public class BitBoard
                 break;
         }
     }
-
+    
     /**
      * Reverts a transformation applied to the board.
      * 
@@ -549,7 +549,7 @@ public class BitBoard
                 break;
         }
     }
-
+    
     /**
      * Sets the board to the neighbors of all bits that are currently set.
      */
@@ -557,27 +557,28 @@ public class BitBoard
     {
         final int k1 = 0b00000_011111111_011111111_011111111;
         final int k2 = 0b00000_111111110_111111110_111111110;
-
+        
         int t1 = d1;
         d1 = ((d1 & k1) << 1) | ((d1 & k2) >> 1) | ((d1 << 9) & BITS_MASK) | (d1 >> 9) | ((d2 & ROW_MASK_1) << ROW_3_SHIFT) | (d0 >> ROW_3_SHIFT);
         d0 = ((d0 & k1) << 1) | ((d0 & k2) >> 1) | ((d0 << 9) & BITS_MASK) | (d0 >> 9) | ((t1 & ROW_MASK_1) << ROW_3_SHIFT);
         d2 = ((d2 & k1) << 1) | ((d2 & k2) >> 1) | ((d2 << 9) & BITS_MASK) | (d2 >> 9) | (t1 >> ROW_3_SHIFT);
     }
-
+    
     /**
-     * Flips the value of squares that neighbor an odd number of squares with set bits.
+     * Flips the value of squares that neighbor an odd number of squares with set
+     * bits.
      */
     public void toggleNeighbors()
     {
         final int k1 = 0b00000_011111111_011111111_011111111;
         final int k2 = 0b00000_111111110_111111110_111111110;
-
+        
         int t1 = d1;
         d1 = ((d1 & k1) << 1) ^ ((d1 & k2) >> 1) ^ ((d1 << 9) & BITS_MASK) ^ (d1 >> 9) ^ ((d2 & ROW_MASK_1) << ROW_3_SHIFT) ^ (d0 >> ROW_3_SHIFT);
         d0 = ((d0 & k1) << 1) ^ ((d0 & k2) >> 1) ^ ((d0 << 9) & BITS_MASK) ^ (d0 >> 9) ^ ((t1 & ROW_MASK_1) << ROW_3_SHIFT);
         d2 = ((d2 & k1) << 1) ^ ((d2 & k2) >> 1) ^ ((d2 << 9) & BITS_MASK) ^ (d2 >> 9) ^ (t1 >> ROW_3_SHIFT);
     }
-
+    
     /**
      * Sets this board to the bitwise NOT of itself.
      */
@@ -587,7 +588,7 @@ public class BitBoard
         d1 = ~d1;
         d2 = ~d2;
     }
-
+    
     /**
      * Sets this board to the bitwise AND of itself and another board.
      * 
@@ -600,7 +601,7 @@ public class BitBoard
         d1 &= other.d1;
         d2 &= other.d2;
     }
-
+    
     /**
      * Sets this board to the bitwise AND of itself and the inverse of another
      * board.
@@ -614,7 +615,7 @@ public class BitBoard
         d1 &= ~other.d1;
         d2 &= ~other.d2;
     }
-
+    
     /**
      * Sets this board to the bitwise OR of itself and another board.
      * 
@@ -627,7 +628,7 @@ public class BitBoard
         d1 |= other.d1;
         d2 |= other.d2;
     }
-
+    
     /**
      * Sets this board to the bitwise XOR of itself and another board.
      * 
@@ -640,7 +641,7 @@ public class BitBoard
         d1 ^= other.d1;
         d2 ^= other.d2;
     }
-
+    
     /**
      * Gets the cardinality of the bitwise operation "a AND b".
      * 
@@ -657,7 +658,7 @@ public class BitBoard
         int d2 = a.d2 & b.d2;
         return Integer.bitCount(d0) + Integer.bitCount(d1) + Integer.bitCount(d2);
     }
-
+    
     /**
      * Gets the cardinality of the bitwise operation "a AND NOT(b)".
      * 
@@ -674,7 +675,7 @@ public class BitBoard
         int d2 = a.d2 & ~b.d2;
         return Integer.bitCount(d0) + Integer.bitCount(d1) + Integer.bitCount(d2);
     }
-
+    
     /**
      * Gets the cardinality of the bitwise operation "a OR b".
      * 
@@ -691,7 +692,7 @@ public class BitBoard
         int d2 = a.d2 | b.d2;
         return Integer.bitCount(d0) + Integer.bitCount(d1) + Integer.bitCount(d2);
     }
-
+    
     /**
      * Gets the cardinality of the bitwise operation "a XOR b".
      * 
@@ -708,7 +709,7 @@ public class BitBoard
         int d2 = a.d2 ^ b.d2;
         return Integer.bitCount(d0) + Integer.bitCount(d1) + Integer.bitCount(d2);
     }
-
+    
     /**
      * Compares two bitboard istances.
      * 
@@ -731,7 +732,7 @@ public class BitBoard
         }
         return comp;
     }
-
+    
     @Override
     public boolean equals(Object obj)
     {
@@ -742,7 +743,7 @@ public class BitBoard
         }
         return false;
     }
-
+    
     @Override
     public String toString()
     {
