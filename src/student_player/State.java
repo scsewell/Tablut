@@ -9,32 +9,42 @@ import tablut.TablutBoardState;
 
 /**
  * Implements the game state. This replaces and extends the functionality of
- * TablutBoardState, but does things much more optimally. For example checks for
- * things like out of bounds are ignored to get the most performance. Instead of
- * cloning states, a single state is used by making then unmaking moves as
- * states are explored.
+ * TablutBoardState, but does things much more optimally. In general this is
+ * achieved by doing the following:
  * 
- * All states have a canonical version that ignores any symmetry of the sqaure,
- * allowing for identifying any boards symmetrically equivalent to one already
- * explored.
+ * 1) Using bitboards to compute board heuristics and such in constant time. 2)
+ * Not checking for things like out of bound indices. The code should never
+ * supply invalid values anyways. 3) Using primitive types where possible. This
+ * keeps memory accesses to a minimum. 4) Never instantiating objects while
+ * processing the state, except where absolutely neccessary.
+ * 
+ * Instead of cloning states, a single state should be used to explore the
+ * search tree by making and unmaking moves as states are explored. This is
+ * keeps pressure off of the garbage collector and should improve the cache hit
+ * rate.
+ * 
+ * As well, states can determine the transformation required to get to a
+ * canonical state that is shared by any symmetric boards using the symmetries
+ * of the square.
  * 
  * @author Scott Sewell, ID: 260617022
  */
 public class State
 {
-    private static final int      NO_KING   = -1;
-    private static final int      BLACK     = 0;
-    private static final int      WHITE     = 1;
-    private static final int      MAX_TURNS = 100;
-    private static final long[][] HASH_KEYS = new long[3][81];
+    private static final int      BLACK        = 0;
+    private static final int      WHITE        = 1;
+    private static final int      MAX_TURNS    = 100;
+    private static final int      NOT_ON_BOARD = -1;
+    private static final long[][] HASH_KEYS    = new long[3][81];
     
     // private static BitBoard[] m_legalMovesForPiece = new BitBoard[16];
     // private static BitBoard m_legalMovesForKing = new BitBoard();
     // private static BitBoard m_allLegalMoves = new BitBoard();
     
     /**
-     * The static constructor. Generates a hash for a black, white, or king piece on
-     * any square, used by the hashing function.
+     * The static constructor. Generates a table containing unique hashes for black,
+     * white, and king piece when on each board square. This is used when computing
+     * board hashes.
      */
     static
     {
@@ -56,31 +66,55 @@ public class State
     private int      m_turnPlayer;
     private int      m_winner;
     
-    private int[]    m_blackPieces;
-    private int      m_blackPieceCount;
-    private int[]    m_whitePieces;
-    private int      m_whitePieceCount;
-    private int      m_kingSquare;
-    
     private BitBoard m_pieces          = new BitBoard();
     private BitBoard m_piecesReflected = new BitBoard();
     private BitBoard m_black           = new BitBoard();
     private BitBoard m_whiteWithKing   = new BitBoard();
     private BitBoard m_whiteNoKing     = new BitBoard();
     
+    private int[]    m_blackPieces     = new int[16];
+    private int      m_blackPieceCount = 0;
+    private int[]    m_whitePieces     = new int[8];
+    private int      m_whitePieceCount = 0;
+    private int      m_kingSquare      = NOT_ON_BOARD;
+    
+    /**
+     * Creates a board with a given state.
+     * 
+     * @param turn The current turn.
+     * @param player The current player.
+     * @param black The positions of all black pieces on the board.
+     * @param white The positions of all white's normal pieces on the board.
+     * @param king The position of the king.
+     */
+    public State(int turn, int player, BitBoard black, BitBoard white, int king)
+    {
+        m_turnNumber = turn;
+        m_turnPlayer = player;
+        m_winner = Board.NOBODY;
+        
+        m_black.copy(black);
+        m_whiteNoKing.copy(white);
+        m_whiteWithKing.copy(white);
+        m_whiteWithKing.set(king);
+        m_kingSquare = king;
+        
+        m_pieces.copy(m_black);
+        m_pieces.or(m_whiteWithKing);
+        m_piecesReflected.copy(m_pieces);
+        m_piecesReflected.mirrorDiagonal();
+        
+        generatePiecesLists();
+    }
+    
     /**
      * Initializes the state from a TablutBoardState.
      * 
      * @param state
-     *            The state to setup using.
+     *            The state to initialize from.
      */
     public State(TablutBoardState state)
     {
-        m_blackPieces = new int[16];
-        m_blackPieceCount = 0;
-        m_whitePieces = new int[8];
-        m_whitePieceCount = 0;
-        
         // increment turn with every move rather then every other move
         m_turnNumber = ((2 * state.getTurnNumber()) - 1) + state.getTurnPlayer();
         m_turnPlayer = state.getTurnPlayer();
@@ -95,29 +129,30 @@ public class State
             switch (state.getPieceAt(Coordinates.get(col, row)))
             {
                 case BLACK:
-                    m_pieces.set(i);
-                    m_piecesReflected.set(row, col);
-                    
                     m_black.set(i);
                     
                     m_blackPieces[m_blackPieceCount++] = i;
-                    break;
-                case WHITE:
+                    
                     m_pieces.set(i);
                     m_piecesReflected.set(row, col);
+                    break;
+                case WHITE:
                     
                     m_whiteNoKing.set(i);
                     m_whiteWithKing.set(i);
                     
                     m_whitePieces[m_whitePieceCount++] = i;
-                    break;
-                case KING:
+                    
                     m_pieces.set(i);
                     m_piecesReflected.set(row, col);
-                    
+                    break;
+                case KING:
                     m_whiteWithKing.set(i);
                     
                     m_kingSquare = i;
+                    
+                    m_pieces.set(i);
+                    m_piecesReflected.set(row, col);
                     break;
                 default:
                     break;
@@ -134,17 +169,17 @@ public class State
     }
     
     /**
-     * Gets the number of turns until the game ends.
+     * Gets the number of moves left until the game ends.
      */
-    public int getRemainingTurns()
+    public int getRemainingMoves()
     {
         return isTerminal() ? 0 : (MAX_TURNS - m_turnNumber + 1);
     }
     
-    private final BitBoard m_assistingPieces = new BitBoard();
-    private final BitBoard m_capturedPieces  = new BitBoard();
-    private final BitBoard m_capturedKing    = new BitBoard();
-    private final BitBoard m_escapedKing     = new BitBoard();
+    private BitBoard m_assistingPieces = new BitBoard();
+    private BitBoard m_capturedPieces  = new BitBoard();
+    private BitBoard m_capturedKing    = new BitBoard();
+    private BitBoard m_escapedKing     = new BitBoard();
     
     /**
      * Applies a move to the state.
@@ -245,7 +280,7 @@ public class State
             if (m_capturedPieces.getValue(m_kingSquare))
             {
                 m_winner = BLACK;
-                m_kingSquare = NO_KING;
+                m_kingSquare = NOT_ON_BOARD;
                 
                 fullMove |= (((long)kingSquare) << 39) | (1L << 38);
             }
@@ -314,6 +349,132 @@ public class State
         m_piecesReflected.copy(m_pieces);
         m_piecesReflected.mirrorDiagonal();
         
+        generatePiecesLists();
+        
+        // increment the turn
+        m_turnNumber++;
+        m_turnPlayer = (m_turnPlayer + 1) % 2;
+        
+        // return the move packed with the captured pieces
+        return fullMove;
+    }
+    
+    /**
+     * Undoes a move applied to this state.
+     * 
+     * @param move
+     *            The move to unmake. The bits for the move contain the following information.
+     * @formatter:off
+     *      bits 0-6     the board square index of square moved from
+     *      bits 7-13    the board square index of square moved to
+     *      bits 14      set if a piece was captured
+     *      bits 15-21   the board square index of the piece if captured
+     *      bits 22      set if a second piece was captured
+     *      bits 23-29   the board square index of the piece if captured
+     *      bits 30      set if a third piece was captured
+     *      bits 31-37   the board square index of the piece if captured
+     *      bits 38      set if the king was captured
+     *      bits 39-45   the board square index of the king if captured
+     * @formatter:on
+     */
+    public void unmakeMove(long move)
+    {
+        // decrement the turn
+        m_turnNumber--;
+        m_turnPlayer = (m_turnPlayer + 1) % 2;
+        m_winner = Board.NOBODY;
+        
+        // extract the board squares moved from and to from the move integer.
+        int from = (int)(move & 0x7F);
+        int to = (int)((move >> 7) & 0x7F);
+        
+        int fromRow = from / 9;
+        int fromCol = from % 9;
+        int toRow = to / 9;
+        int toCol = to % 9;
+        
+        if (m_turnPlayer == BLACK)
+        {
+            // unmove the piece
+            m_black.clear(toCol, toRow);
+            m_black.set(fromCol, fromRow);
+            
+            // add back any captured pieces
+            int capture0 = (int)((move >> 14) & 0xFF);
+            if (capture0 > 0)
+            {
+                m_whiteWithKing.set(capture0 >> 1);
+                
+                int capture1 = (int)((move >> 22) & 0xFF);
+                if (capture1 > 0)
+                {
+                    m_whiteWithKing.set(capture1 >> 1);
+                    
+                    int capture2 = (int)((move >> 30) & 0xFF);
+                    if (capture2 > 0)
+                    {
+                        m_whiteWithKing.set(capture2 >> 1);
+                    }
+                }
+            }
+            
+            // add back the king if it was captured
+            int kingCapture = (int)((move >> 38) & 0xFF);
+            if (kingCapture > 0)
+            {
+                kingCapture >>= 1;
+                m_whiteWithKing.set(kingCapture);
+                m_kingSquare = kingCapture;
+            }
+        }
+        else
+        {
+            // unmove the piece
+            m_whiteWithKing.clear(toCol, toRow);
+            m_whiteWithKing.set(fromCol, fromRow);
+            
+            if (m_kingSquare == to)
+            {
+                m_kingSquare = from;
+            }
+            
+            // add back any captured pieces
+            int capture0 = (int)((move >> 14) & 0xFF);
+            if (capture0 > 0)
+            {
+                m_black.set(capture0 >> 1);
+                
+                int capture1 = (int)((move >> 22) & 0xFF);
+                if (capture1 > 0)
+                {
+                    m_black.set(capture1 >> 1);
+                    
+                    int capture2 = (int)((move >> 30) & 0xFF);
+                    if (capture2 > 0)
+                    {
+                        m_black.set(capture2 >> 1);
+                    }
+                }
+            }
+        }
+        
+        // update remaining bitboards
+        m_whiteNoKing.copy(m_whiteWithKing);
+        m_whiteNoKing.clear(m_kingSquare);
+        
+        m_pieces.copy(m_black);
+        m_pieces.or(m_whiteWithKing);
+        m_piecesReflected.copy(m_pieces);
+        m_piecesReflected.mirrorDiagonal();
+        
+        generatePiecesLists();
+    }
+    
+    /**
+     * Updates the list of squares black and white pieces are on.
+     */
+    private void generatePiecesLists()
+    {
         // get the board squares of all black pieces
         m_blackPieceCount = 0;
         int num = m_black.d0;
@@ -377,134 +538,6 @@ public class State
                 stage++;
             }
         }
-        
-        // increment the turn
-        m_turnNumber++;
-        m_turnPlayer = (m_turnPlayer + 1) % 2;
-        
-        // return the move packed with the captured pieces
-        return fullMove;
-    }
-    
-    /**
-     * Undoes a move applied to this state.
-     * 
-     * @param move
-     *            The move to unmake. The bits for the move contain the following information.
-     * @formatter:off
-     *      bits 0-6     the board square index of square moved from
-     *      bits 7-13    the board square index of square moved to
-     *      bits 14      set if a piece was captured
-     *      bits 15-21   the board square index of the piece if captured
-     *      bits 22      set if a second piece was captured
-     *      bits 23-29   the board square index of the piece if captured
-     *      bits 30      set if a third piece was captured
-     *      bits 31-37   the board square index of the piece if captured
-     *      bits 38      set if the king was captured
-     *      bits 39-45   the board square index of the king if captured
-     * @formatter:on
-     */
-    public void unmakeMove(long move)
-    {
-        // decrement the turn
-        m_turnNumber--;
-        m_turnPlayer = (m_turnPlayer + 1) % 2;
-        m_winner = Board.NOBODY;
-        
-        // extract the board squares moved from and to from the move integer.
-        int from = (int)(move & 0x7F);
-        int to = (int)((move >> 7) & 0x7F);
-        
-        int fromRow = from / 9;
-        int fromCol = from % 9;
-        int toRow = to / 9;
-        int toCol = to % 9;
-        
-        if (m_turnPlayer == BLACK)
-        {
-            // unmove the piece
-            m_black.clear(toCol, toRow);
-            m_black.set(fromCol, fromRow);
-            
-            // add back any captured pieces
-            int capture0 = (int)((move >> 14) & 0xFF);
-            if (capture0 > 0)
-            {
-                capture0 >>= 1;
-                m_whiteWithKing.set(capture0);
-                m_whitePieces[m_whitePieceCount++] = capture0;
-                
-                int capture1 = (int)((move >> 22) & 0xFF);
-                if (capture1 > 0)
-                {
-                    capture1 >>= 1;
-                    m_whiteWithKing.set(capture1);
-                    m_whitePieces[m_whitePieceCount++] = capture1;
-                    
-                    int capture2 = (int)((move >> 30) & 0xFF);
-                    if (capture2 > 0)
-                    {
-                        capture2 >>= 1;
-                        m_whiteWithKing.set(capture2);
-                        m_whitePieces[m_whitePieceCount++] = capture2;
-                    }
-                }
-            }
-            
-            // add back the king if it was captured
-            int kingCapture = (int)((move >> 38) & 0xFF);
-            if (kingCapture > 0)
-            {
-                kingCapture >>= 1;
-                m_whiteWithKing.set(kingCapture);
-                m_kingSquare = kingCapture;
-            }
-        }
-        else
-        {
-            // unmove the piece
-            m_whiteWithKing.clear(toCol, toRow);
-            m_whiteWithKing.set(fromCol, fromRow);
-            
-            if (m_kingSquare == to)
-            {
-                m_kingSquare = from;
-            }
-            
-            // add back any captured pieces
-            int capture0 = (int)((move >> 14) & 0xFF);
-            if (capture0 > 0)
-            {
-                capture0 >>= 1;
-                m_black.set(capture0);
-                m_blackPieces[m_blackPieceCount++] = capture0;
-                
-                int capture1 = (int)((move >> 22) & 0xFF);
-                if (capture1 > 0)
-                {
-                    capture1 >>= 1;
-                    m_black.set(capture1);
-                    m_blackPieces[m_blackPieceCount++] = capture1;
-                    
-                    int capture2 = (int)((move >> 30) & 0xFF);
-                    if (capture2 > 0)
-                    {
-                        capture2 >>= 1;
-                        m_black.set(capture2);
-                        m_blackPieces[m_blackPieceCount++] = capture2;
-                    }
-                }
-            }
-        }
-        
-        // update remaining bitboards
-        m_whiteNoKing.copy(m_whiteWithKing);
-        m_whiteNoKing.clear(m_kingSquare);
-        
-        m_pieces.copy(m_black);
-        m_pieces.or(m_whiteWithKing);
-        m_piecesReflected.copy(m_pieces);
-        m_piecesReflected.mirrorDiagonal();
     }
     
     /**
@@ -516,16 +549,39 @@ public class State
         {
             if (m_winner != Board.NOBODY)
             {
-                return m_turnPlayer == m_winner ? Integer.MAX_VALUE : Integer.MIN_VALUE;
+                // a win is infinite utility for player, loss is negative infinity
+                return (m_turnPlayer == m_winner ? 1 : -1) * (1 << 30);
             }
+            // draw is 0 utility for both players
             return 0;
         }
-        return 0;
+        else
+        {
+            // calculate the value of the board for black
+            int valueForBlack = 0;
+            
+            // the heuristic value of a piece
+            final int PIECE_VALUE = 1000;
+            
+            valueForBlack += (m_blackPieceCount - (m_whitePieceCount + 1)) * PIECE_VALUE;
+            
+            for (int i = 0; i < m_blackPieceCount; i++)
+            {
+                int index = m_blackPieces[i];
+                int row = index / 9;
+                int col = index % 9;
+                
+                valueForBlack -= (Math.abs(4 - col) + Math.abs(4 - row));
+            }
+            
+            // flip the board value if the turn player is white
+            return m_turnPlayer == BLACK ? valueForBlack : -valueForBlack;
+        }
     }
     
     /**
-     * Computes a hash for the current board. Any boards symmetrically identical
-     * share a hash.
+     * Computes a hash for the current board. Any boards symmetrically will have the
+     * same hash.
      */
     public long calculateHash()
     {
@@ -541,7 +597,7 @@ public class State
         {
             hash ^= HASH_KEYS[1][BoardUtils.TRANSFORMED_INDICIES[m_canonicalTransform][m_whitePieces[i]]];
         }
-        if (m_kingSquare != NO_KING)
+        if (m_kingSquare != NOT_ON_BOARD)
         {
             hash ^= HASH_KEYS[2][BoardUtils.TRANSFORMED_INDICIES[m_canonicalTransform][m_kingSquare]];
         }
@@ -643,23 +699,28 @@ public class State
      */
     private boolean calcCanonicalKingTransform()
     {
-        int canonicalKing = m_kingSquare;
-        m_canonicalTransform = 0;
         boolean duplicate = false;
+        m_canonicalTransform = 0;
         
-        for (int i = 1; i < 8; i++)
+        // only evaluate if king is on the board
+        if (m_kingSquare != NOT_ON_BOARD)
         {
-            int transformedKing = BoardUtils.TRANSFORMED_INDICIES[i][m_kingSquare];
-            int compare = transformedKing - canonicalKing;
+            int canonicalKing = m_kingSquare;
             
-            if (compare == 0)
+            for (int i = 1; i < 8; i++)
             {
-                duplicate = true;
-            }
-            else if (compare > 0)
-            {
-                canonicalKing = transformedKing;
-                duplicate = false;
+                int transformedKing = BoardUtils.TRANSFORMED_INDICIES[i][m_kingSquare];
+                int compare = transformedKing - canonicalKing;
+                
+                if (compare == 0)
+                {
+                    duplicate = true;
+                }
+                else if (compare > 0)
+                {
+                    canonicalKing = transformedKing;
+                    duplicate = false;
+                }
             }
         }
         return duplicate;

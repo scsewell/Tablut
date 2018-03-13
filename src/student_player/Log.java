@@ -100,9 +100,9 @@ public class Log
      * @param object
      *            The object to write to the file.
      */
-    public static void Info(Object obj)
+    public static void info(Object obj)
     {
-        Info(obj.toString());
+        info(obj.toString());
     }
 
     /**
@@ -111,7 +111,7 @@ public class Log
      * @param message
      *            The message to write to the file.
      */
-    public static void Info(String message)
+    public static void info(String message)
     {
         instance().m_logger.info(message);
     }
@@ -146,6 +146,6 @@ public class Log
             str += String.format("Memory Remaining: %4.3f KB", (double)memoryleft / KB);
         }
 
-        Info(str);
+        info(str);
     }
 }

@@ -139,7 +139,7 @@ public class TablutBoardPanel extends BoardPanel implements MouseListener, Mouse
             Graphics2D g2 = (Graphics2D) g;
             Stroke oldStroke = g2.getStroke();
             g2.setStroke(new BasicStroke(HIGHLIGHT_THICKNESS));
-            g.drawRect(c.y * SQUARE_SIZE, c.x * SQUARE_SIZE, SQUARE_SIZE, SQUARE_SIZE);
+            g.drawRect(c.x * SQUARE_SIZE, c.y * SQUARE_SIZE, SQUARE_SIZE, SQUARE_SIZE);
             g2.setStroke(oldStroke);
         }
 
@@ -195,8 +195,8 @@ public class TablutBoardPanel extends BoardPanel implements MouseListener, Mouse
             Coord destination = null;
             for (Coord c : Coordinates.iterCoordinates()) { // not efficient, but its okay, just a GUI.
                 if (bs.coordIsEmpty(c)) {
-                    int xPos = c.y * SQUARE_SIZE + SQUARE_SIZE / 2; // have to switch x and y.
-                    int yPos = c.x * SQUARE_SIZE + SQUARE_SIZE / 2;
+                    int xPos = c.x * SQUARE_SIZE + SQUARE_SIZE / 2; // have to switch x and y.
+                    int yPos = c.y * SQUARE_SIZE + SQUARE_SIZE / 2;
                     if (clickInSquare(clickX, clickY, xPos, yPos)) {
                         destination = c;
                         break;
@@ -229,8 +229,8 @@ public class TablutBoardPanel extends BoardPanel implements MouseListener, Mouse
         for (Coord c : Coordinates.iterCoordinates()) {
             Piece p = bs.getPieceAt(c);
             if (p != Piece.EMPTY) {
-                int xPos = c.y * SQUARE_SIZE + SQUARE_SIZE / 2;
-                int yPos = c.x * SQUARE_SIZE + SQUARE_SIZE / 2;
+                int xPos = c.x * SQUARE_SIZE + SQUARE_SIZE / 2;
+                int yPos = c.y * SQUARE_SIZE + SQUARE_SIZE / 2;
                 GUIPiece gp = new GUIPiece(p, xPos, yPos, c);
                 boardPieces.add(gp);
             }

@@ -37,7 +37,7 @@ public class BoardUtils
     {
         int from = move & 0x7F;
         int to = (move >> 7) & 0x7F;
-        return String.format("(%s %s) -> (%s %s)", from / 9, from % 9, to / 9, to % 9);
+        return String.format("(%s %s) -> (%s %s)", from % 9, from / 9, to % 9, to / 9);
     }
 
     /**

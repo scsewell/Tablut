@@ -2,37 +2,60 @@ package student_player;
 
 /**
  * With the provided Board classes, computing values like how many opponent
- * pieces share a row with a given piece or the mirror of the board are quite
- * expensive, requiring looping over many coordinates. I wanted a way to do that
- * more efficiently.
+ * pieces share a row with a given piece or the reflection of the board are
+ * expensive, requiring iterating over many coordinates. I wanted a way to do
+ * that in constant time without any branches for good performance.
  * 
- * bitboards pack boolean information about a board into numeric primitives.
+ * bitboards pack boolean information about a board into numeric primitives,
+ * with each bit in the primitive representing a unique board tile, with the
+ * index of the bit matching the tile's number. Since the board is 9 by 9, it
+ * has 81 squares, so we need at least 81 bits in our primitives. Using three
+ * integers gets us 96, with 15 wasted bits. The least significant 27 bits in
+ * each integer stores three rows of the bitboard. The most significant 5 bits
+ * are ignored.
+ * 
  * This enables very fast comparisons of boards storing different types of
  * boolean information by using bitwise operations.
  * 
  * For example, suppose we have a bitboard which is true on squares where
  * placing a piece would capture an opponent, and another bitboard that is true
  * wherever a piece can be legally moved. If we bitwise AND these two boards and
- * count the true bits left, we can determine how many squares we can capture
- * opponents from this turn.
- * 
- * Since the board is 9 by 9, it has 81 squares, so we need at least 81 bits.
- * Using three integers gets us 96, with 15 wasted bits. The lower 27 bits in
- * each integer stores three rows of the bitboard. The most significant 5 bits
- * are ignored.
+ * count the set bits remaining, we can determine how many squares we can
+ * capture opponents from this turn, in constant time!
  * 
  * @author Scott Sewell, ID: 260617022
  */
 public class BitBoard
 {
-    private static final int ROW_2_SHIFT = 9;
-    private static final int ROW_3_SHIFT = 18;
+    /**
+     * The bit index of the second row's start.
+     */
+    private static final int ROW_2_SHIFT     = 9;
     
-    private static final int ROW_MASK_1  = 0x000001FF;
-    private static final int ROW_MASK_2  = ROW_MASK_1 << ROW_2_SHIFT;
-    private static final int ROW_MASK_3  = ROW_MASK_1 << ROW_3_SHIFT;
+    /**
+     * The bit index of the third row's start.
+     */
+    private static final int ROW_3_SHIFT     = 18;
     
-    private static final int BITS_MASK   = ROW_MASK_1 | ROW_MASK_2 | ROW_MASK_3;
+    /**
+     * Masks the bits that store the first row.
+     */
+    private static final int ROW_MASK_1      = 0x000001FF;
+    
+    /**
+     * Masks the bits that store the second row.
+     */
+    private static final int ROW_MASK_2      = ROW_MASK_1 << ROW_2_SHIFT;
+    
+    /**
+     * Masks the bits that store the third row.
+     */
+    private static final int ROW_MASK_3      = ROW_MASK_1 << ROW_3_SHIFT;
+    
+    /**
+     * Masks the bits that are allowed to be non-zero.
+     */
+    private static final int VALID_BITS_MASK = ROW_MASK_1 | ROW_MASK_2 | ROW_MASK_3;
     
     public int               d0;
     public int               d1;
@@ -57,9 +80,9 @@ public class BitBoard
      */
     public BitBoard(int d0, int d1, int d2)
     {
-        this.d0 = BITS_MASK & d0;
-        this.d1 = BITS_MASK & d1;
-        this.d2 = BITS_MASK & d2;
+        this.d0 = VALID_BITS_MASK & d0;
+        this.d1 = VALID_BITS_MASK & d1;
+        this.d2 = VALID_BITS_MASK & d2;
     }
     
     /**
@@ -105,7 +128,7 @@ public class BitBoard
      */
     public boolean isFull()
     {
-        return (d0 & d1 & d2) == BITS_MASK;
+        return (d0 & d1 & d2) == VALID_BITS_MASK;
     }
     
     /**
@@ -333,31 +356,31 @@ public class BitBoard
         switch (row)
         {
             case 0:
-                d0 = BITS_MASK & value;
+                d0 = VALID_BITS_MASK & value;
                 break;
             case 1:
-                d0 = BITS_MASK & (value << ROW_2_SHIFT);
+                d0 = VALID_BITS_MASK & (value << ROW_2_SHIFT);
                 break;
             case 2:
-                d0 = BITS_MASK & (value << ROW_3_SHIFT);
+                d0 = VALID_BITS_MASK & (value << ROW_3_SHIFT);
                 break;
             case 3:
-                d1 = BITS_MASK & value;
+                d1 = VALID_BITS_MASK & value;
                 break;
             case 4:
-                d1 = BITS_MASK & (value << ROW_2_SHIFT);
+                d1 = VALID_BITS_MASK & (value << ROW_2_SHIFT);
                 break;
             case 5:
-                d1 = BITS_MASK & (value << ROW_3_SHIFT);
+                d1 = VALID_BITS_MASK & (value << ROW_3_SHIFT);
                 break;
             case 6:
-                d2 = BITS_MASK & value;
+                d2 = VALID_BITS_MASK & value;
                 break;
             case 7:
-                d2 = BITS_MASK & (value << ROW_2_SHIFT);
+                d2 = VALID_BITS_MASK & (value << ROW_2_SHIFT);
                 break;
             case 8:
-                d2 = BITS_MASK & (value << ROW_3_SHIFT);
+                d2 = VALID_BITS_MASK & (value << ROW_3_SHIFT);
                 break;
         }
     }
@@ -559,9 +582,9 @@ public class BitBoard
         final int k2 = 0b00000_111111110_111111110_111111110;
         
         int t1 = d1;
-        d1 = ((d1 & k1) << 1) | ((d1 & k2) >> 1) | ((d1 << 9) & BITS_MASK) | (d1 >> 9) | ((d2 & ROW_MASK_1) << ROW_3_SHIFT) | (d0 >> ROW_3_SHIFT);
-        d0 = ((d0 & k1) << 1) | ((d0 & k2) >> 1) | ((d0 << 9) & BITS_MASK) | (d0 >> 9) | ((t1 & ROW_MASK_1) << ROW_3_SHIFT);
-        d2 = ((d2 & k1) << 1) | ((d2 & k2) >> 1) | ((d2 << 9) & BITS_MASK) | (d2 >> 9) | (t1 >> ROW_3_SHIFT);
+        d1 = ((d1 & k1) << 1) | ((d1 & k2) >> 1) | ((d1 << 9) & VALID_BITS_MASK) | (d1 >> 9) | ((d2 & ROW_MASK_1) << ROW_3_SHIFT) | (d0 >> ROW_3_SHIFT);
+        d0 = ((d0 & k1) << 1) | ((d0 & k2) >> 1) | ((d0 << 9) & VALID_BITS_MASK) | (d0 >> 9) | ((t1 & ROW_MASK_1) << ROW_3_SHIFT);
+        d2 = ((d2 & k1) << 1) | ((d2 & k2) >> 1) | ((d2 << 9) & VALID_BITS_MASK) | (d2 >> 9) | (t1 >> ROW_3_SHIFT);
     }
     
     /**
@@ -574,9 +597,9 @@ public class BitBoard
         final int k2 = 0b00000_111111110_111111110_111111110;
         
         int t1 = d1;
-        d1 = ((d1 & k1) << 1) ^ ((d1 & k2) >> 1) ^ ((d1 << 9) & BITS_MASK) ^ (d1 >> 9) ^ ((d2 & ROW_MASK_1) << ROW_3_SHIFT) ^ (d0 >> ROW_3_SHIFT);
-        d0 = ((d0 & k1) << 1) ^ ((d0 & k2) >> 1) ^ ((d0 << 9) & BITS_MASK) ^ (d0 >> 9) ^ ((t1 & ROW_MASK_1) << ROW_3_SHIFT);
-        d2 = ((d2 & k1) << 1) ^ ((d2 & k2) >> 1) ^ ((d2 << 9) & BITS_MASK) ^ (d2 >> 9) ^ (t1 >> ROW_3_SHIFT);
+        d1 = ((d1 & k1) << 1) ^ ((d1 & k2) >> 1) ^ ((d1 << 9) & VALID_BITS_MASK) ^ (d1 >> 9) ^ ((d2 & ROW_MASK_1) << ROW_3_SHIFT) ^ (d0 >> ROW_3_SHIFT);
+        d0 = ((d0 & k1) << 1) ^ ((d0 & k2) >> 1) ^ ((d0 << 9) & VALID_BITS_MASK) ^ (d0 >> 9) ^ ((t1 & ROW_MASK_1) << ROW_3_SHIFT);
+        d2 = ((d2 & k1) << 1) ^ ((d2 & k2) >> 1) ^ ((d2 << 9) & VALID_BITS_MASK) ^ (d2 >> 9) ^ (t1 >> ROW_3_SHIFT);
     }
     
     /**
