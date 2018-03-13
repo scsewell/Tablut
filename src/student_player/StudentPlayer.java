@@ -210,7 +210,7 @@ public class StudentPlayer extends TablutPlayer
             Log.info(m_transpositionTable.size());
             nodesVisited += m_nodeCount;
         }
-        Log.info(String.format("Total nodes visited: %s", m_nodeCount));
+        Log.info(String.format("Total nodes visited: %s", nodesVisited));
         return bestMove;
     }
     

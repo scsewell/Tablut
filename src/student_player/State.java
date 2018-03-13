@@ -792,6 +792,7 @@ public class State
     @Override
     public String toString()
     {
+        // print turn information
         String str = System.lineSeparator();
         str += "Turn " + m_turnNumber + ", ";
         
@@ -811,37 +812,45 @@ public class State
         {
             str += "Next Move: " + (m_turnPlayer == BLACK ? "Black" : "White");
         }
-        
+
+        // print the number of pieces for each team
         str += System.lineSeparator();
         str += "Black Pieces: " + m_black.cardinality() + " ";
         str += "White Pieces: " + m_whiteWithKing.cardinality() + " ";
-        
+
+        // print the board nicely formatted
         str += System.lineSeparator();
+        str += "   0 1 2 3 4 5 6 7 8  " + System.lineSeparator();
+        str += "  +-----------------+  " + System.lineSeparator();
         for (int row = 0; row < 9; row++)
         {
+            str += row + " |";
             for (int col = 0; col < 9; col++)
             {
                 int square = (row * 9) + col;
                 
                 if (m_black.getValue(square))
                 {
-                    str += 'b';
+                    str += "b ";
                 }
                 else if (m_whiteNoKing.getValue(square))
                 {
-                    str += 'w';
+                    str += "w ";
                 }
                 else if (m_kingSquare == square)
                 {
-                    str += 'K';
+                    str += "K ";
                 }
                 else
                 {
-                    str += '.';
+                    str += ". ";
                 }
             }
-            str += System.lineSeparator();
+            str = str.substring(0, str.length() - 1);
+            str += "| " + row + System.lineSeparator();
         }
+        str += "  +-----------------+  " + System.lineSeparator();
+        str += "   0 1 2 3 4 5 6 7 8  " + System.lineSeparator();
         return str;
     }
 }

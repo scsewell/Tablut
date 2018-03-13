@@ -14,14 +14,14 @@ public class TranspositionTable extends LinkedHashMap<Long, TranspositionData>
     /**
      * The maximum number of elements in the transposition table.
      */
-    private static final int MAX_SIZE = 100000000;
+    private static final int MAX_SIZE = 10000000;
     
     /**
      * Constructs a transposition table.
      */
     public TranspositionTable()
     {
-        super(MAX_SIZE + 1, 0.75f);
+        super(MAX_SIZE + 1, 0.75f, true);
     }
     
     @Override

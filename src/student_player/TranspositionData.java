@@ -44,26 +44,6 @@ public class TranspositionData
     public int              bestMove;
     
     /**
-     * Creates a new transposition data store.
-     * 
-     * @param nodeType
-     *            The type of node this store represents.
-     * @param depth
-     *            The depth at which this node was found at.
-     * @param score
-     *            The score of this node.
-     * @param bestMove
-     *            The best move at this node.
-     */
-//    public TranspositionData(int nodeType, int depth, int score, int bestMove)
-//    {
-//        this.nodeType = nodeType;
-//        this.depth = depth;
-//        this.score = score;
-//        this.bestMove = bestMove;
-//    }
-    
-    /**
      * Gets the best move and score packed into a long.
      * 
      * @return the move in the upper 32 bits, the score in the lower 32 bits.
