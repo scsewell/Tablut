@@ -169,6 +169,14 @@ public class State
     }
     
     /**
+     * Gets the current turn number.
+     */
+    public int getTurnNumber()
+    {
+        return m_turnNumber;
+    }
+    
+    /**
      * Gets the number of moves left until the game ends.
      */
     public int getRemainingMoves()
@@ -540,6 +548,8 @@ public class State
         }
     }
     
+    public static final int WIN_VALUE = 60000;
+    
     /**
      * Gets the value of this board for the player whose turn it is.
      */
@@ -549,8 +559,8 @@ public class State
         {
             if (m_winner != Board.NOBODY)
             {
-                // a win is infinite utility for player, loss is negative infinity
-                return (m_turnPlayer == m_winner ? 1 : -1) * ((1 << 30) - m_turnNumber);
+                // wins closer to turn 1 are considered better
+                return (m_turnPlayer == m_winner ? 1 : -1) * (WIN_VALUE + (MAX_TURNS - m_turnNumber));
             }
             // draw is 0 utility for both players
             return 0;
