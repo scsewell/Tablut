@@ -233,7 +233,7 @@ public class State
         
         // find pieces that can help the moved piece make a capture
         m_assistingPieces.copy(playerPieces);
-        m_assistingPieces.or(BitBoardConsts.corners);
+        m_assistingPieces.or(BitBoardConsts.onlyKingAllowed);
         m_assistingPieces.and(BitBoardConsts.twoCrosses[to]);
         
         // find captured pieces
@@ -475,7 +475,7 @@ public class State
      */
     private void generatePiecesLists()
     {
-        // get the board squares of all black pieces
+        // update the board squares of all black pieces
         m_blackPieceCount = 0;
         int num = m_black.d0;
         int stage = 0;
@@ -507,7 +507,7 @@ public class State
             }
         }
         
-        // get the board squares of all non-king white pieces
+        // update the board squares of all non-king white pieces
         m_whitePieceCount = 0;
         num = m_whiteNoKing.d0;
         stage = 0;
@@ -550,7 +550,7 @@ public class State
             if (m_winner != Board.NOBODY)
             {
                 // a win is infinite utility for player, loss is negative infinity
-                return (m_turnPlayer == m_winner ? 1 : -1) * (1 << 30);
+                return (m_turnPlayer == m_winner ? 1 : -1) * ((1 << 30) - m_turnNumber);
             }
             // draw is 0 utility for both players
             return 0;
@@ -560,19 +560,22 @@ public class State
             // calculate the value of the board for black
             int valueForBlack = 0;
             
-            // the heuristic value of a piece
             final int PIECE_VALUE = 1000;
+            final int KING_CORNER_DISTANCE_VALUE = 100;
             
+            // get the piece difference
             valueForBlack += (m_blackPieceCount - (m_whitePieceCount + 1)) * PIECE_VALUE;
             
-            for (int i = 0; i < m_blackPieceCount; i++)
-            {
-                int index = m_blackPieces[i];
-                int row = index / 9;
-                int col = index % 9;
-                
-                valueForBlack -= (Math.abs(4 - col) + Math.abs(4 - row));
-            }
+            // black does better the further the distance of the king from a corner
+            int kingRow = m_kingSquare / 9;
+            int kingCol = m_kingSquare % 9;
+            
+            int cornerDist0 = Math.abs(0 - kingCol) + Math.abs(0 - kingRow);
+            int cornerDist1 = Math.abs(0 - kingCol) + Math.abs(8 - kingRow);
+            int cornerDist2 = Math.abs(8 - kingCol) + Math.abs(0 - kingRow);
+            int cornerDist3 = Math.abs(8 - kingCol) + Math.abs(8 - kingRow);
+            int maxDistance = Math.max(Math.max(cornerDist0, cornerDist1), Math.max(cornerDist2, cornerDist3)); 
+            valueForBlack += maxDistance * KING_CORNER_DISTANCE_VALUE;
             
             // flip the board value if the turn player is white
             return m_turnPlayer == BLACK ? valueForBlack : -valueForBlack;

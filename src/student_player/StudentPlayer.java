@@ -1,8 +1,7 @@
 package student_player;
 
 import java.util.Arrays;
-import java.util.HashSet;
-import java.util.LinkedHashMap;
+import java.util.Comparator;
 import java.util.Random;
 import java.util.Stack;
 
@@ -46,41 +45,73 @@ public class StudentPlayer extends TablutPlayer
         Random rand = new Random(100);
         TablutBoardState initialState = new TablutBoardState();
         
+        // BitBoard black = new BitBoard();
+        // black.set(0, 1);
+        // black.set(0, 3);
+        // black.set(0, 4);
+        // black.set(0, 5);
+        // black.set(1, 4);
+        // black.set(2, 3);
+        // black.set(3, 8);
+        // black.set(4, 7);
+        // black.set(4, 8);
+        // black.set(5, 0);
+        // black.set(5, 8);
+        // black.set(7, 4);
+        // black.set(8, 3);
+        // black.set(8, 4);
+        // black.set(8, 5);
+        //
+        // BitBoard white = new BitBoard();
+        // white.set(3, 4);
+        // white.set(4, 5);
+        // white.set(4, 6);
+        // white.set(5, 4);
+        // white.set(6, 4);
+        //
+        // State s = new State(1, 0, black, white, 4);
+        // Log.info(s);
+        //
+        // StudentPlayer player = new StudentPlayer();
+        // int move0 = player.getBestMove(s, 5 * 1000000000L);
+        // Log.info(BoardUtils.getMoveString(move0));
+        // s.makeMove(move0);
+        // Log.info(s);
+        // int move1 = player.getBestMove(s, 5 * 1000000000L);
+        // Log.info(BoardUtils.getMoveString(move1));
+        // s.makeMove(move1);
+        // Log.info(s);
+        
         BitBoard black = new BitBoard();
-        black.set(0, 1);
         black.set(0, 3);
         black.set(0, 4);
         black.set(0, 5);
-        black.set(1, 4);
-        black.set(2, 3);
-        black.set(3, 8);
+        black.set(2, 2);
+        black.set(3, 0);
+        black.set(3, 2);
+        black.set(4, 1);
         black.set(4, 7);
         black.set(4, 8);
         black.set(5, 0);
+        black.set(6, 6);
         black.set(5, 8);
-        black.set(7, 4);
-        black.set(8, 3);
         black.set(8, 4);
-        black.set(8, 5);
         
         BitBoard white = new BitBoard();
-        white.set(3, 4);
+        white.set(2, 4);
+        white.set(4, 2);
         white.set(4, 5);
-        white.set(4, 6);
-        white.set(5, 4);
-        white.set(6, 4);
+        white.set(5, 6);
+        white.set(6, 2);
+        white.set(8, 1);
         
-        State s = new State(1, 0, black, white, 4);
+        State s = new State(1, 0, black, white, 35);
         Log.info(s);
         
         StudentPlayer player = new StudentPlayer();
         int move0 = player.getBestMove(s, 5 * 1000000000L);
         Log.info(BoardUtils.getMoveString(move0));
         s.makeMove(move0);
-        Log.info(s);
-        int move1 = player.getBestMove(s, 5 * 1000000000L);
-        Log.info(BoardUtils.getMoveString(move1));
-        s.makeMove(move1);
         Log.info(s);
         
         for (int game = 0; game < 1; game++)
@@ -124,8 +155,8 @@ public class StudentPlayer extends TablutPlayer
                 time1 += System.nanoTime() - t;
             }
         }
-//        Log.info(time0 / 1000000000.0f);
-//        Log.info(time1 / 1000000000.0f);
+        // Log.info(time0 / 1000000000.0f);
+        // Log.info(time1 / 1000000000.0f);
         
         // long time1 = 0;
         // for (int game = 0; game < 10000; game++)
@@ -156,7 +187,9 @@ public class StudentPlayer extends TablutPlayer
         int turn = boardState.getTurnNumber();
         long timeout = (turn == 1 ? START_TURN_TIMEOUT : TURN_TIMEOUT);
         
-        int move = getBestMove(new State(boardState), timeout);
+        State state = new State(boardState);
+        Log.info(state);
+        int move = getBestMove(state, timeout);
         
         // extract the coordinates of the move from the packed move integer
         int from = move & 0x7F;
@@ -183,34 +216,47 @@ public class StudentPlayer extends TablutPlayer
     private int getBestMove(State currentState, long timeout)
     {
         // get the time we want to have a result by
-        m_stopTime = System.nanoTime() + timeout;
+        long startTime = System.nanoTime();
+        m_stopTime = startTime + timeout;
         
         int nodesVisited = 0;
         
         // Do an iterative depth search to find a good move.
         // Iterates until all nodes are explored or time is up.
         int bestMove = -1;
-        for (int depth = 1; depth <= currentState.getRemainingMoves(); depth++)
+        int maxDepth = currentState.getRemainingMoves();
+        for (int depth = 1; depth <= maxDepth; depth++)
         {
             m_nodeCount = 0;
             m_hitCount = 0;
+            
             // search for the best move
             long result = Negamax(currentState, depth, -Integer.MAX_VALUE, Integer.MAX_VALUE);
+            nodesVisited += m_nodeCount;
             
             // unpack the best move and use it if this iteration was completed
             if (System.nanoTime() < m_stopTime)
             {
-                bestMove = (int)(result >> 32);
+                int move = (int)(result >> 32);
+                // only use valid moves
+                if (move != 0)
+                {
+                    bestMove = move;
+                    Log.info(String.format("bestMove: %s", BoardUtils.getMoveString(bestMove)));
+                }
             }
             else
             {
                 break;
             }
-            Log.info(String.format("depth completed: %s  nodes visited this iteration: %s  table hits: %s", depth, m_nodeCount, m_hitCount));
-            Log.info(m_transpositionTable.size());
-            nodesVisited += m_nodeCount;
+            Log.info(String.format("depth completed: %s  nodes visited this iteration: %s  table hits: %s", depth,
+                    m_nodeCount, m_hitCount));
         }
+        Log.info("transposition table size: " + m_transpositionTable.size());
         Log.info(String.format("Total nodes visited: %s", nodesVisited));
+        Log.info(String.format("Chosen move: %s", BoardUtils.getMoveString(bestMove)));
+        Log.printMemoryUsage();
+        Log.info(String.format("Time used: %s", (System.nanoTime() - startTime) / 1000000000.0));
         return bestMove;
     }
     
@@ -240,28 +286,28 @@ public class StudentPlayer extends TablutPlayer
         TranspositionData entry = m_transpositionTable.get(hash);
         
         // if the entry is valid use the stored data
-        if (entry != null && entry.depth >= depth)
+        if (entry != null)
         {
-            m_hitCount++;
-            // the score represents a different value based on the node type
-            switch (entry.nodeType)
+            if (entry.depth >= depth)
             {
-                case TranspositionData.PV_NODE:
-                    // the exact value and best move are known
+                m_hitCount++;
+                // the score represents a different value based on the node type
+                switch (entry.nodeType)
+                {
+                    case TranspositionData.PV_NODE: // the exact value and best move are known
+                        return entry.getValue();
+                    case TranspositionData.CUT_NODE: // this node contains a lower bound
+                        a = Math.max(a, entry.score);
+                        break;
+                    case TranspositionData.ALL_NODE: // this node contains an upper bound
+                        b = Math.min(b, entry.score);
+                        break;
+                }
+                // alpha-beta prune
+                if (a >= b)
+                {
                     return entry.getValue();
-                case TranspositionData.CUT_NODE:
-                    // this node contains a lower bound
-                    a = Math.max(a, entry.score);
-                    break;
-                case TranspositionData.ALL_NODE:
-                    // this node contains an upper bound
-                    b = Math.min(b, entry.score);
-                    break;
-            }
-            // alpha-beta prune
-            if (a >= b)
-            {
-                return entry.getValue();
+                }
             }
         }
         
@@ -274,6 +320,9 @@ public class StudentPlayer extends TablutPlayer
         // generate all legal moves for this state
         int[] legalMoves = state.getAllLegalMoves();
         
+        // try to place the best moves first, as it greatly improves the pruning
+        // performance
+        
         // iterate over all legal moves to find the best heuristic value among the child
         // nodes
         long bestValue = -Integer.MAX_VALUE;
@@ -285,7 +334,7 @@ public class StudentPlayer extends TablutPlayer
             {
                 bestValue = -Integer.MAX_VALUE;
                 bestMove = 0;
-                break;
+                return (bestMove << 32) | (bestValue & 0xFFFFFFFFL);
             }
             
             // apply the move to the board
@@ -296,7 +345,7 @@ public class StudentPlayer extends TablutPlayer
             state.unmakeMove(move);
             
             // check if the move is the best found so far
-            int value = (int)result;
+            int value = (int)(result & 0xFFFFFFFFL);
             if (bestValue < value)
             {
                 bestValue = value;
@@ -315,28 +364,20 @@ public class StudentPlayer extends TablutPlayer
         // update the transposition table with the new node value
         if (entry == null)
         {
-            entry = new TranspositionData();
-            // add the new entry to the table
-            m_transpositionTable.put(hash, entry);
+            entry = m_transpositionTable.getNewData(hash);
         }
         
-        // add the node data
-        entry.depth = depth;
-        entry.score = (int)(bestValue & 0xFFFFFFFFL);
-        entry.bestMove = (int)bestMove;
-        
-        // set the node type
         if (bestValue <= aOrig)
         {
-            entry.nodeType = TranspositionData.ALL_NODE;
+            entry.set(TranspositionData.ALL_NODE, depth, bestValue, bestMove);
         }
         else if (bestValue >= b)
         {
-            entry.nodeType = TranspositionData.CUT_NODE;
+            entry.set(TranspositionData.CUT_NODE, depth, bestValue, bestMove);
         }
         else
         {
-            entry.nodeType = TranspositionData.PV_NODE;
+            entry.set(TranspositionData.PV_NODE, depth, bestValue, bestMove);
         }
         
         // return the bset move and best value

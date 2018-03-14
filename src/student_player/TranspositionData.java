@@ -43,6 +43,14 @@ public class TranspositionData
      */
     public int              bestMove;
     
+    public void set(int nodeType, int depth, long bestValue, long bestMove)
+    {
+        this.nodeType = nodeType;
+        this.depth = depth;
+        this.score = (int)(bestValue & 0xFFFFFFFFL);
+        this.bestMove = (int)bestMove;
+    }
+    
     /**
      * Gets the best move and score packed into a long.
      * 
