@@ -91,6 +91,8 @@ public class StudentPlayer extends TablutPlayer
         //
         // State s = new State(1, 0, black, white, 35);
         
+        //State s = new State(new TablutBoardState());
+        
         StudentPlayer player = new StudentPlayer();
         int move0 = player.getBestMove(s, 5 * 1000000000L);
         s.makeMove(move0);

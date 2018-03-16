@@ -36,13 +36,10 @@ public class State
 {
     private static final int      BLACK        = 0;
     private static final int      WHITE        = 1;
-    private static final int      MAX_TURNS    = 100;
+    private static final int      MAX_MOVES    = 100;
     private static final int      NOT_ON_BOARD = -1;
-    private static final long[][] HASH_KEYS    = new long[3][81];
     
-    // private static BitBoard[] m_legalMovesForPiece = new BitBoard[16];
-    // private static BitBoard m_legalMovesForKing = new BitBoard();
-    // private static BitBoard m_allLegalMoves = new BitBoard();
+    private static final long[][] HASH_KEYS    = new long[3][81];
     
     /**
      * The static constructor. Prepares the Zorbist hash values, a table containing
@@ -58,32 +55,26 @@ public class State
             HASH_KEYS[1][i] = rand.nextLong();
             HASH_KEYS[2][i] = rand.nextLong();
         }
-        
-        // for (int i = 0; i < m_legalMovesForPiece.length; i++)
-        // {
-        // m_legalMovesForPiece[i] = new BitBoard();
-        // }
     }
     
-    private long[]   m_moves               = new long[MAX_TURNS + 1];
-    private long[]   m_hashes              = new long[MAX_TURNS + 1];
-    private int[]    m_canonicalTransforms = new int[MAX_TURNS + 1];
+    // stacks storing infromation about ancestor moves
+    private long[]    m_moves               = new long[MAX_MOVES + 2];
+    private long[]    m_hashes              = new long[MAX_MOVES + 2];
+    private int[]     m_canonicalTransforms = new int[MAX_MOVES + 2];
+    private int[][][] m_pieceSquares        = new int[MAX_MOVES + 2][2][16];
+    private int[][]   m_pieceCounts         = new int[MAX_MOVES + 2][2];
     
-    private int      m_turnNumber;
-    private int      m_turnPlayer;
-    private int      m_winner;
+    // the current board state
+    private int       m_turnNumber;
+    private int       m_turnPlayer;
+    private int       m_winner;
     
-    private BitBoard m_pieces              = new BitBoard();
-    private BitBoard m_piecesReflected     = new BitBoard();
-    private BitBoard m_black               = new BitBoard();
-    private BitBoard m_whiteWithKing       = new BitBoard();
-    private BitBoard m_whiteNoKing         = new BitBoard();
-    
-    private int[]    m_blackPieces         = new int[16];
-    private int      m_blackPieceCount     = 0;
-    private int[]    m_whitePieces         = new int[8];
-    private int      m_whitePieceCount     = 0;
-    private int      m_kingSquare          = NOT_ON_BOARD;
+    private BitBoard  m_pieces              = new BitBoard();
+    private BitBoard  m_piecesReflected     = new BitBoard();
+    private BitBoard  m_black               = new BitBoard();
+    private BitBoard  m_whiteWithKing       = new BitBoard();
+    private BitBoard  m_whiteNoKing         = new BitBoard();
+    private int       m_kingSquare          = NOT_ON_BOARD;
     
     /**
      * Creates a board with a given state.
@@ -101,7 +92,7 @@ public class State
      */
     public State(int turn, int player, BitBoard black, BitBoard white, int king)
     {
-        m_turnNumber = turn;
+        m_turnNumber = turn - 1;
         m_turnPlayer = player;
         m_winner = Board.NOBODY;
         
@@ -109,14 +100,15 @@ public class State
         m_whiteNoKing.copy(white);
         m_whiteWithKing.copy(white);
         m_whiteWithKing.set(king);
+        m_kingSquare = king;
         
         m_pieces.copy(m_black);
         m_pieces.or(m_whiteWithKing);
         m_piecesReflected.copy(m_pieces);
         m_piecesReflected.mirrorDiagonal();
         
-        generatePiecesLists();
-        m_kingSquare = king;
+        computePiecesLists();
+        
         m_hashes[0] = calculateHash();
         m_canonicalTransforms[0] = calcCanonicalTransform();
     }
@@ -130,7 +122,7 @@ public class State
     public State(TablutBoardState state)
     {
         // increment turn with every move rather then every other move
-        m_turnNumber = ((2 * state.getTurnNumber()) - 1) + state.getTurnPlayer();
+        m_turnNumber = (2 * (state.getTurnNumber() - 1)) + state.getTurnPlayer();
         m_turnPlayer = state.getTurnPlayer();
         m_winner = state.getWinner();
         
@@ -139,39 +131,30 @@ public class State
         {
             int row = i / 9;
             int col = i % 9;
-            
             switch (state.getPieceAt(Coordinates.get(col, row)))
             {
                 case BLACK:
                     m_black.set(i);
-                    
-                    m_blackPieces[m_blackPieceCount++] = i;
-                    
-                    m_pieces.set(i);
-                    m_piecesReflected.set(row, col);
                     break;
                 case WHITE:
-                    
                     m_whiteNoKing.set(i);
                     m_whiteWithKing.set(i);
-                    
-                    m_whitePieces[m_whitePieceCount++] = i;
-                    
-                    m_pieces.set(i);
-                    m_piecesReflected.set(row, col);
                     break;
                 case KING:
-                    m_whiteWithKing.set(i);
-                    
                     m_kingSquare = i;
-                    
-                    m_pieces.set(i);
-                    m_piecesReflected.set(row, col);
+                    m_whiteWithKing.set(i);
                     break;
                 default:
                     break;
             }
         }
+        
+        m_pieces.copy(m_black);
+        m_pieces.or(m_whiteWithKing);
+        m_piecesReflected.copy(m_pieces);
+        m_piecesReflected.mirrorDiagonal();
+        
+        computePiecesLists();
         
         m_hashes[0] = calculateHash();
         m_canonicalTransforms[0] = calcCanonicalTransform();
@@ -182,7 +165,7 @@ public class State
      */
     public boolean isTerminal()
     {
-        return m_winner != Board.NOBODY || m_turnNumber > MAX_TURNS;
+        return m_winner != Board.NOBODY || m_turnNumber == MAX_MOVES;
     }
     
     /**
@@ -198,7 +181,7 @@ public class State
      */
     public int getRemainingMoves()
     {
-        return isTerminal() ? 0 : (MAX_TURNS - m_turnNumber + 1);
+        return isTerminal() ? 0 : MAX_MOVES - m_turnNumber;
     }
     
     private BitBoard m_assistingPieces   = new BitBoard();
@@ -217,8 +200,8 @@ public class State
     public void makeMove(int move)
     {
         long fullMove = move;
-        long previousHash = m_hashes[m_turnNumber - 1];
-        int previousTransform = m_canonicalTransforms[m_turnNumber - 1];
+        long previousHash = m_hashes[m_turnNumber];
+        int previousTransform = m_canonicalTransforms[m_turnNumber];
         
         // extract the board squares moved from and to from the move integer.
         int from = move & 0x7F;
@@ -346,7 +329,7 @@ public class State
             m_black.andNot(m_capturedPieces);
         }
         
-        // add any captured pieces to the move information
+        // add any captured pieces to the move information and update the baord hash
         if (!m_capturedPieces.isEmpty())
         {
             int shift = 14;
@@ -388,22 +371,28 @@ public class State
         m_pieces.or(m_whiteWithKing);
         m_piecesReflected.copy(m_pieces);
         m_piecesReflected.mirrorDiagonal();
-        
-        generatePiecesLists();
-        int canonicalTransform = calcCanonicalTransform();
-        if (canonicalTransform != previousTransform)
-        {
-            previousHash = calculateHash();
-        }
-        m_canonicalTransforms[m_turnNumber] = canonicalTransform;
-        
-        // store the move and hash
+
+        // store the move
         m_moves[m_turnNumber] = fullMove;
-        m_hashes[m_turnNumber] = previousHash;
         
         // increment the turn
         m_turnNumber++;
         m_turnPlayer = (m_turnPlayer + 1) % 2;
+
+        int canonicalTransform = previousTransform;
+        // int canonicalTransform = calcCanonicalTransform();
+        // if (canonicalTransform != previousTransform)
+        // {
+        // previousHash = calculateHash();
+        // }
+        // m_canonicalTransforms[m_turnNumber] = canonicalTransform;
+        
+        // store the hash and transform of the board
+        m_hashes[m_turnNumber] = previousHash;
+        m_canonicalTransforms[m_turnNumber] = canonicalTransform;
+        
+        // find where each player's pieces are on the board for this turn
+        computePiecesLists();
     }
     
     /**
@@ -518,18 +507,32 @@ public class State
         m_pieces.or(m_whiteWithKing);
         m_piecesReflected.copy(m_pieces);
         m_piecesReflected.mirrorDiagonal();
-        
-        generatePiecesLists();
     }
     
     /**
-     * Updates the list of squares black and white pieces are on.
+     * Updates the list of squares black and white pieces are on for the current
+     * turn.
      */
-    private void generatePiecesLists()
+    private void computePiecesLists()
+    {
+        computePieceList(BLACK, m_black);
+        computePieceList(WHITE, m_whiteNoKing);
+    }
+    
+    /**
+     * Updates the list of squares a player's non-king pieces are on by iterating
+     * the bitboard of piece locations for that player for the current turn.
+     * 
+     * @param player
+     *            The player to update the pieces for.
+     * @param playerPieces
+     *            The bitboard containing the locations for the player's pieces.
+     */
+    private void computePieceList(int player, BitBoard playerPieces)
     {
         // update the board squares of all black pieces
-        m_blackPieceCount = 0;
-        int num = m_black.d0;
+        int pieceCount = 0;
+        int num = playerPieces.d0;
         int stage = 0;
         int index = -1;
         while (stage < 3)
@@ -540,60 +543,25 @@ public class State
                 shiftIndex++;
                 num = num >> shiftIndex;
                 index += shiftIndex;
-                m_blackPieces[m_blackPieceCount++] = index;
-                // m_hash ^=
-                // HASH_KEYS[0][BoardUtils.TRANSFORMED_INDICIES[m_canonicalTransform][index]];
+                m_pieceSquares[m_turnNumber][player][pieceCount++] = index;
             }
             else
             {
                 switch (stage)
                 {
                     case 0:
-                        num = m_black.d1;
+                        num = playerPieces.d1;
                         index = 26;
                         break;
                     case 1:
-                        num = m_black.d2;
+                        num = playerPieces.d2;
                         index = 53;
                         break;
                 }
                 stage++;
             }
         }
-        
-        // update the board squares of all non-king white pieces
-        m_whitePieceCount = 0;
-        num = m_whiteNoKing.d0;
-        stage = 0;
-        index = -1;
-        while (stage < 3)
-        {
-            int shiftIndex = Integer.numberOfTrailingZeros(num);
-            if (shiftIndex != 32)
-            {
-                shiftIndex++;
-                num = num >> shiftIndex;
-                index += shiftIndex;
-                m_whitePieces[m_whitePieceCount++] = index;
-                // m_hash ^=
-                // HASH_KEYS[1][BoardUtils.TRANSFORMED_INDICIES[m_canonicalTransform][index]];
-            }
-            else
-            {
-                switch (stage)
-                {
-                    case 0:
-                        num = m_whiteNoKing.d1;
-                        index = 26;
-                        break;
-                    case 1:
-                        num = m_whiteNoKing.d2;
-                        index = 53;
-                        break;
-                }
-                stage++;
-            }
-        }
+        m_pieceCounts[m_turnNumber][player] = pieceCount;
     }
     
     /**
@@ -611,7 +579,7 @@ public class State
             if (m_winner != Board.NOBODY)
             {
                 // wins closer to turn 1 are considered better
-                return (short)((m_turnPlayer == m_winner ? 1 : -1) * (WIN_VALUE + (MAX_TURNS - m_turnNumber)));
+                return (short)((m_turnPlayer == m_winner ? 1 : -1) * (WIN_VALUE + (MAX_MOVES - m_turnNumber)));
             }
             // draw is 0 utility for both players
             return 0;
@@ -624,8 +592,10 @@ public class State
             final int PIECE_VALUE = 1000;
             final int KING_CORNER_DISTANCE_VALUE = 100;
             
+            int blackCount = m_pieceCounts[m_turnNumber][BLACK];
+            int whiteCount = m_pieceCounts[m_turnNumber][WHITE];
             // get the piece difference
-            valueForBlack += (m_blackPieceCount - (m_whitePieceCount + 1)) * PIECE_VALUE;
+            valueForBlack += (blackCount - (whiteCount + 1)) * PIECE_VALUE;
             
             // black does better the further the distance of the king from a corner
             int kingRow = m_kingSquare / 9;
@@ -644,7 +614,7 @@ public class State
     }
     
     /**
-     * Computes a hash for the current board using the zorbist hashing method. Any
+     * Computes the hash for the current board using the zorbist hashing method. Any
      * boards symmetrically identical will have the same hash.
      */
     public long calculateHash()
@@ -653,14 +623,18 @@ public class State
         
         int canonicalTransform = calcCanonicalTransform();
         
-        for (int i = 0; i < m_blackPieceCount; i++)
+        int[] blackPieces = m_pieceSquares[m_turnNumber][BLACK];
+        for (int i = 0; i < m_pieceCounts[m_turnNumber][BLACK]; i++)
         {
-            hash ^= HASH_KEYS[0][BoardUtils.TRANSFORMED_INDICIES[canonicalTransform][m_blackPieces[i]]];
+            hash ^= HASH_KEYS[0][BoardUtils.TRANSFORMED_INDICIES[canonicalTransform][blackPieces[i]]];
         }
-        for (int i = 0; i < m_whitePieceCount; i++)
+        
+        int[] whitePieces = m_pieceSquares[m_turnNumber][WHITE];
+        for (int i = 0; i < m_pieceCounts[m_turnNumber][WHITE]; i++)
         {
-            hash ^= HASH_KEYS[1][BoardUtils.TRANSFORMED_INDICIES[canonicalTransform][m_whitePieces[i]]];
+            hash ^= HASH_KEYS[1][BoardUtils.TRANSFORMED_INDICIES[canonicalTransform][whitePieces[i]]];
         }
+        
         if (m_kingSquare != NOT_ON_BOARD)
         {
             hash ^= HASH_KEYS[2][BoardUtils.TRANSFORMED_INDICIES[canonicalTransform][m_kingSquare]];
@@ -678,19 +652,16 @@ public class State
     {
         m_legalMoveCount = 0;
         
-        if (m_turnPlayer == BLACK)
+        int[] pieces = m_pieceSquares[m_turnNumber][m_turnPlayer];
+        int pieceCount = m_pieceCounts[m_turnNumber][m_turnPlayer];
+        
+        for (int i = 0; i < pieceCount; i++)
         {
-            for (int i = 0; i < m_blackPieceCount; i++)
-            {
-                getMoves(m_blackPieces[i], false);
-            }
+            getMoves(pieces[i], false);
         }
-        else
+        
+        if (m_turnPlayer == WHITE)
         {
-            for (int i = 0; i < m_whitePieceCount; i++)
-            {
-                getMoves(m_whitePieces[i], false);
-            }
             getMoves(m_kingSquare, true);
         }
         
@@ -863,7 +834,7 @@ public class State
     {
         // print turn information
         String str = System.lineSeparator();
-        str += "Turn " + m_turnNumber + ", ";
+        str += "Turn " + (m_turnNumber + 1) + ", ";
         
         if (isTerminal())
         {
@@ -888,7 +859,7 @@ public class State
         str += "White Pieces: " + m_whiteWithKing.cardinality() + " ";
         
         // print the board nicely formatted
-        long move = (m_turnNumber > 1) ? m_moves[m_turnNumber - 2] : -1;
+        long move = (m_turnNumber > 0) ? m_moves[m_turnNumber - 1] : -1;
         int from = (int)(move & 0x7F);
         int to = (int)((move >> 7) & 0x7F);
         
