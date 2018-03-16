@@ -65,25 +65,28 @@ public class State
         // }
     }
     
-    private long[]   m_moves               = new long[MAX_TURNS + 1];
-    private long[]   m_hashes              = new long[MAX_TURNS + 1];
-    private int[]    m_canonicalTransforms = new int[MAX_TURNS + 1];
+    private long[]    m_moves               = new long[MAX_TURNS + 1];
+    private long[]    m_hashes              = new long[MAX_TURNS + 1];
+    private int[]     m_canonicalTransforms = new int[MAX_TURNS + 1];
     
-    private int      m_turnNumber;
-    private int      m_turnPlayer;
-    private int      m_winner;
+    private int[][][] m_legalMoves          = new int[81][2][8];
+    private int[][]   m_legalMovesCount     = new int[81][4];
     
-    private BitBoard m_pieces              = new BitBoard();
-    private BitBoard m_piecesReflected     = new BitBoard();
-    private BitBoard m_black               = new BitBoard();
-    private BitBoard m_whiteWithKing       = new BitBoard();
-    private BitBoard m_whiteNoKing         = new BitBoard();
+    private int       m_turnNumber;
+    private int       m_turnPlayer;
+    private int       m_winner;
     
-    private int[]    m_blackPieces         = new int[16];
-    private int      m_blackPieceCount     = 0;
-    private int[]    m_whitePieces         = new int[8];
-    private int      m_whitePieceCount     = 0;
-    private int      m_kingSquare          = NOT_ON_BOARD;
+    private BitBoard  m_pieces              = new BitBoard();
+    private BitBoard  m_piecesReflected     = new BitBoard();
+    private BitBoard  m_black               = new BitBoard();
+    private BitBoard  m_whiteWithKing       = new BitBoard();
+    private BitBoard  m_whiteNoKing         = new BitBoard();
+    
+    private int[]     m_blackPieces         = new int[16];
+    private int       m_blackPieceCount     = 0;
+    private int[]     m_whitePieces         = new int[8];
+    private int       m_whitePieceCount     = 0;
+    private int       m_kingSquare          = NOT_ON_BOARD;
     
     /**
      * Creates a board with a given state.
@@ -119,6 +122,7 @@ public class State
         m_kingSquare = king;
         m_hashes[0] = calculateHash();
         m_canonicalTransforms[0] = calcCanonicalTransform();
+        calculateAllLegalMoves();
     }
     
     /**
@@ -175,6 +179,7 @@ public class State
         
         m_hashes[0] = calculateHash();
         m_canonicalTransforms[0] = calcCanonicalTransform();
+        calculateAllLegalMoves();
     }
     
     /**
@@ -268,9 +273,12 @@ public class State
                 previousHash ^= HASH_KEYS[1][BoardUtils.TRANSFORMED_INDICIES[previousTransform][to]];
             }
         }
-        
+
         playerPieces.clear(fromCol, fromRow);
         playerPieces.set(toCol, toRow);
+        
+        clearLegalMoves(from);
+        calculateMoves(to, to == m_kingSquare);
         
         // find pieces that can help the moved piece make a capture
         m_assistingPieces.copy(playerPieces);
@@ -346,6 +354,12 @@ public class State
             m_black.andNot(m_capturedPieces);
         }
         
+        // update other bitboard with the changed values
+        m_pieces.copy(m_black);
+        m_pieces.or(m_whiteWithKing);
+        m_piecesReflected.copy(m_pieces);
+        m_piecesReflected.mirrorDiagonal();
+        
         // add any captured pieces to the move information
         if (!m_capturedPieces.isEmpty())
         {
@@ -362,6 +376,8 @@ public class State
                     num = num >> shiftIndex;
                     index += shiftIndex;
                     previousHash ^= HASH_KEYS[opponent][BoardUtils.TRANSFORMED_INDICIES[previousTransform][index]];
+                    updateBlockedPiecesMoves(index);
+                    clearLegalMoves(index);
                     fullMove |= (((long)index) << (shift + 1)) | (1L << shift);
                     shift += 8;
                 }
@@ -382,14 +398,115 @@ public class State
                 }
             }
         }
-        
-        // update other bitboard with the changed values
-        m_pieces.copy(m_black);
-        m_pieces.or(m_whiteWithKing);
-        m_piecesReflected.copy(m_pieces);
-        m_piecesReflected.mirrorDiagonal();
+
+        updateBlockedPiecesMoves(from);
+        updateBlockedPiecesMoves(to);
+//        int fr = BitBoardConsts.legalMoves[fromCol][m_pieces.getRow(fromRow)];
+//        int fr_start = (fr >> 17) & 0xf;
+//        int fr_end = (fr >> 21);
+//        if (m_pieces.getValue(fr_start))
+//        {
+//            if (toCol > fromCol)
+//            {
+//                m_legalMovesCount[fr_start][1] = ((fr_start % 9) - toCol) - 1;
+//            }
+//            else
+//            {
+//                addRightRowMoves(fr_start, fr_start % 9, fr_start / 9, toCol, fr_start == m_kingSquare);
+//            }
+//        }
+//        if (m_pieces.getValue(fr_end))
+//        {
+//            if (toCol < fromCol)
+//            {
+//                m_legalMovesCount[fr_end][0] = (toCol - (fr_end % 9)) - 1;
+//            }
+//            else
+//            {
+//                addLeftRowMoves(fr_end, fr_end % 9, fr_end / 9, toCol, fr_end == m_kingSquare);
+//            }
+//        }
+//
+//        int fc = BitBoardConsts.legalMoves[fromRow][m_piecesReflected.getRow(fromCol)];
+//        int fc_start = (fc >> 17) & 0xf;
+//        int fc_end = (fc >> 21);
+//        if (m_pieces.getValue(fc_start))
+//        {
+//            if (toRow > fromRow)
+//            {
+//                m_legalMovesCount[fc_start][3] = ((fc_start / 9) - toRow) - 1;
+//            }
+//            else
+//            {
+//                addUpColMoves(fc_start, fc_start % 9, fc_start / 9, toRow, fc_start == m_kingSquare);
+//            }
+//        }
+//        if (m_pieces.getValue(fc_end))
+//        {
+//            if (toRow < fromRow)
+//            {
+//                m_legalMovesCount[fc_end][2] = (toRow - (fc_end / 9)) - 1;
+//            }
+//            else
+//            {
+//                addDownColMoves(fc_end, fc_end % 9, fc_end / 9, toRow, fc_end == m_kingSquare);
+//            }
+//        }
+//
+//        int tr = BitBoardConsts.legalMoves[toCol][m_pieces.getRow(toRow)];
+//        int tr_start = (tr >> 17) & 0xf;
+//        int tr_end = (tr >> 21);
+//        if (m_pieces.getValue(tr_start))
+//        {
+//            if (toCol > fromCol)
+//            {
+//                addRightRowMoves(tr_start, tr_start % 9, tr_start / 9, toCol, tr_start == m_kingSquare);
+//            }
+//            else
+//            {
+//                m_legalMovesCount[tr_start][1] = ((tr_start % 9) - toCol) - 1;
+//            }
+//        }
+//        if (m_pieces.getValue(tr_end))
+//        {
+//            if (toCol < fromCol)
+//            {
+//                addLeftRowMoves(tr_end, tr_end % 9, tr_end / 9, toCol, tr_end == m_kingSquare);
+//            }
+//            else
+//            {
+//                m_legalMovesCount[tr_end][0] = (toCol - (tr_end % 9)) - 1;
+//            }
+//        }
+//
+//        int tc = BitBoardConsts.legalMoves[toRow][m_piecesReflected.getRow(toCol)];
+//        int tc_start = (tc >> 17) & 0xf;
+//        int tc_end = (tc >> 21);
+//        if (m_pieces.getValue(tc_start))
+//        {
+//            if (toRow > fromRow)
+//            {
+//                addUpColMoves(tc_start, tc_start % 9, tc_start / 9, toRow, tc_start == m_kingSquare);
+//            }
+//            else
+//            {
+//                m_legalMovesCount[tc_start][3] = ((tc_start / 9) - toRow) - 1;
+//            }
+//        }
+//        if (m_pieces.getValue(tc_end))
+//        {
+//            if (toRow < fromRow)
+//            {
+//                addDownColMoves(tc_end, tc_end % 9, tc_end / 9, toRow, tc_end == m_kingSquare);
+//            }
+//            else
+//            {
+//                m_legalMovesCount[tc_end][2] = (toRow - (tc_end / 9)) - 1;
+//            }
+//        }
         
         generatePiecesLists();
+
         int canonicalTransform = calcCanonicalTransform();
         if (canonicalTransform != previousTransform)
         {
@@ -456,16 +573,22 @@ public class State
             if (capture0 > 0)
             {
                 m_whiteWithKing.set(capture0 >> 1);
+                calculateMoves(capture0, false);
+                updateBlockedPiecesMoves(capture0);
                 
                 int capture1 = (int)((move >> 22) & 0xFF);
                 if (capture1 > 0)
                 {
                     m_whiteWithKing.set(capture1 >> 1);
+                    calculateMoves(capture1, false);
+                    updateBlockedPiecesMoves(capture1);
                     
                     int capture2 = (int)((move >> 30) & 0xFF);
                     if (capture2 > 0)
                     {
                         m_whiteWithKing.set(capture2 >> 1);
+                        calculateMoves(capture2, false);
+                        updateBlockedPiecesMoves(capture2);
                     }
                 }
             }
@@ -477,6 +600,8 @@ public class State
                 kingCapture >>= 1;
                 m_whiteWithKing.set(kingCapture);
                 m_kingSquare = kingCapture;
+                calculateMoves(m_kingSquare, false);
+                updateBlockedPiecesMoves(m_kingSquare);
             }
         }
         else
@@ -495,20 +620,29 @@ public class State
             if (capture0 > 0)
             {
                 m_black.set(capture0 >> 1);
+                calculateMoves(capture0, false);
+                updateBlockedPiecesMoves(capture0);
                 
                 int capture1 = (int)((move >> 22) & 0xFF);
                 if (capture1 > 0)
                 {
                     m_black.set(capture1 >> 1);
+                    calculateMoves(capture1, false);
+                    updateBlockedPiecesMoves(capture1);
                     
                     int capture2 = (int)((move >> 30) & 0xFF);
                     if (capture2 > 0)
                     {
                         m_black.set(capture2 >> 1);
+                        calculateMoves(capture2, false);
+                        updateBlockedPiecesMoves(capture2);
                     }
                 }
             }
         }
+        
+        clearLegalMoves(to);
+        calculateMoves(from, from == m_kingSquare);
         
         // update remaining bitboards
         m_whiteNoKing.copy(m_whiteWithKing);
@@ -520,6 +654,38 @@ public class State
         m_piecesReflected.mirrorDiagonal();
         
         generatePiecesLists();
+    }
+    
+    private void updateBlockedPiecesMoves(int square)
+    {
+        int row = square / 9;
+        int col = square % 9;
+        
+        int rowMoves = BitBoardConsts.legalMoves[col][m_pieces.getRow(row)];
+        int rowMoves_start = (rowMoves >> 17) & 0xf;
+        int rowMoves_end = (rowMoves >> 21);
+        
+        if (m_pieces.getValue(rowMoves_start))
+        {
+            getMoves(rowMoves_start);
+        }
+        if (m_pieces.getValue(rowMoves_end))
+        {
+            getMoves(rowMoves_end);
+        }
+        
+        int colMoves = BitBoardConsts.legalMoves[row][m_piecesReflected.getRow(col)];
+        int colMoves_start = (colMoves >> 17) & 0xf;
+        int colMoves_end = (colMoves >> 21);
+        
+        if (m_pieces.getValue(colMoves_start))
+        {
+            getMoves(colMoves_start);
+        }
+        if (m_pieces.getValue(colMoves_end))
+        {
+            getMoves(colMoves_end);
+        }
     }
     
     /**
@@ -667,34 +833,229 @@ public class State
         }
         return hash;
     }
-    
-    private int[] m_legalMoves = new int[183];
-    private int   m_legalMoveCount;
-    
+
+    /**
+     * Clears the list of legal moves for a piece on the board.
+     * 
+     * @param square
+     *            The board square index of the piece.
+     */
+    private void clearLegalMoves(int square)
+    {
+        m_legalMovesCount[square][0] = 0;
+        m_legalMovesCount[square][1] = 0;
+        m_legalMovesCount[square][2] = 0;
+        m_legalMovesCount[square][3] = 0;
+    }
+
+    /**
+     * Gets the legal moves that may be made for a piece.
+     * 
+     * @param square
+     *            The board square index of the piece.
+     * @param isKing
+     *            Indicates if this piece is the king.
+     */
+    private void addLeftRowMoves(int square, int col, int row, int movedPieceCol, boolean isKing)
+    {
+        int rowMoves = BitBoardConsts.getLegalMovesHorizontal(col, row, isKing, m_pieces);
+
+        int countRowLeft = m_legalMovesCount[square][0];
+
+        int baseIndex = row * 9;
+        for (int i = movedPieceCol; i >= ((rowMoves >> 9) & 0xf); i--)
+        {
+            if ((rowMoves & (1 << i)) != 0)
+            {
+                m_legalMoves[square][0][countRowLeft++] = square | ((baseIndex + i) << 7);
+            }
+        }
+        m_legalMovesCount[square][0] = countRowLeft;
+    }
+
+    /**
+     * Gets the legal moves that may be made for a piece.
+     * 
+     * @param square
+     *            The board square index of the piece.
+     * @param isKing
+     *            Indicates if this piece is the king.
+     */
+    private void addRightRowMoves(int square, int col, int row, int movedPieceCol, boolean isKing)
+    {
+        int rowMoves = BitBoardConsts.getLegalMovesHorizontal(col, row, isKing, m_pieces);
+
+        int countRowRight = m_legalMovesCount[square][1];
+
+        int baseIndex = row * 9;
+        for (int i = movedPieceCol; i <= ((rowMoves >> 13) & 0xf); i++)
+        {
+            if ((rowMoves & (1 << i)) != 0)
+            {
+                m_legalMoves[square][0][7 - countRowRight++] = square | ((baseIndex + i) << 7);
+            }
+        }
+        m_legalMovesCount[square][1] = countRowRight;
+    }
+
+    /**
+     * Gets the legal moves that may be made for a piece.
+     * 
+     * @param square
+     *            The board square index of the piece.
+     * @param isKing
+     *            Indicates if this piece is the king.
+     */
+    private void addDownColMoves(int square, int col, int row, int movedPieceRow, boolean isKing)
+    {
+        int colMoves = BitBoardConsts.getLegalMovesVertical(col, row, isKing, m_piecesReflected);
+
+        int countColDown = m_legalMovesCount[square][2];
+
+        for (int i = movedPieceRow; i >= ((colMoves >> 9) & 0xf); i--)
+        {
+            if ((colMoves & (1 << i)) != 0)
+            {
+                m_legalMoves[square][1][countColDown++] = square | (((i * 9) + col) << 7);
+            }
+        }
+        m_legalMovesCount[square][2] = countColDown;
+    }
+
+    /**
+     * Gets the legal moves that may be made for a piece.
+     * 
+     * @param square
+     *            The board square index of the piece.
+     * @param isKing
+     *            Indicates if this piece is the king.
+     */
+    private void addUpColMoves(int square, int col, int row, int movedPieceRow, boolean isKing)
+    {
+        int colMoves = BitBoardConsts.getLegalMovesVertical(col, row, isKing, m_piecesReflected);
+
+        int countColUp = m_legalMovesCount[square][3];
+
+        for (int i = movedPieceRow; i <= ((colMoves >> 13) & 0xf); i++)
+        {
+            if ((colMoves & (1 << i)) != 0)
+            {
+                m_legalMoves[square][1][7 - countColUp++] = square | (((i * 9) + col) << 7);
+            }
+        }
+        m_legalMovesCount[square][3] = countColUp;
+    }
+
+    /**
+     * Gets the legal moves that may be made for a piece.
+     * 
+     * @param square
+     *            The board square index of the piece.
+     * @param isKing
+     *            Indicates if this piece is the king.
+     */
+    private void calculateMoves(int square, boolean isKing)
+    {
+        int row = square / 9;
+        int col = square % 9;
+        
+        clearLegalMoves(square);
+
+        addLeftRowMoves(square, col, row, col, isKing);
+        addRightRowMoves(square, col, row, col, isKing);
+        addDownColMoves(square, col, row, row, isKing);
+        addUpColMoves(square, col, row, row, isKing);
+    }
+
     /**
      * Finds all moves that the player can currently make.
      */
-    public int[] getAllLegalMoves()
+    private void calculateAllLegalMoves()
     {
-        m_legalMoveCount = 0;
-        
         if (m_turnPlayer == BLACK)
         {
             for (int i = 0; i < m_blackPieceCount; i++)
             {
-                getMoves(m_blackPieces[i], false);
+                calculateMoves(m_blackPieces[i], false);
             }
         }
         else
         {
             for (int i = 0; i < m_whitePieceCount; i++)
             {
-                getMoves(m_whitePieces[i], false);
+                calculateMoves(m_whitePieces[i], false);
             }
-            getMoves(m_kingSquare, true);
+            calculateMoves(m_kingSquare, true);
         }
+    }
+    
+    private int[] m_legalMoveBuffer = new int[183];
+    private int   m_legalMoveBufferCount;
+    
+    /**
+     * Finds all moves that the player can currently make.
+     */
+    public int[] getAllLegalMoves()
+    {
+      m_legalMoveBufferCount = 0;
+      
+      if (m_turnPlayer == BLACK)
+      {
+          for (int i = 0; i < m_blackPieceCount; i++)
+          {
+              getMoves(m_blackPieces[i]);
+          }
+      }
+      else
+      {
+          for (int i = 0; i < m_whitePieceCount; i++)
+          {
+              getMoves(m_whitePieces[i]);
+          }
+          getMoves(m_kingSquare);
+      }
+      
+      return Arrays.copyOf(m_legalMoveBuffer, m_legalMoveBufferCount);
         
-        return Arrays.copyOf(m_legalMoves, m_legalMoveCount);
+//        m_legalMoveCount = 0;
+//        
+//        if (m_turnPlayer == BLACK)
+//        {
+//            for (int i = 0; i < m_blackPieceCount; i++)
+//            {
+//                getMoves(m_blackPieces[i], false);
+//            }
+//        }
+//        else
+//        {
+//            for (int i = 0; i < m_whitePieceCount; i++)
+//            {
+//                getMoves(m_whitePieces[i], false);
+//            }
+//            getMoves(m_kingSquare, true);
+//        }
+//        
+//        return Arrays.copyOf(m_legalMoves, m_legalMoveCount);
+    }
+    
+    private void getMoves(int square)
+    {
+        for (int i = 0; i < m_legalMovesCount[square][0]; i++)
+        {
+            m_legalMoveBuffer[m_legalMoveBufferCount++] = m_legalMoves[square][0][i];
+        }
+        for (int i = 7; i < 7 - m_legalMovesCount[square][1]; i--)
+        {
+            m_legalMoveBuffer[m_legalMoveBufferCount++] = m_legalMoves[square][0][i];
+        }
+        for (int i = 0; i < m_legalMovesCount[square][2]; i++)
+        {
+            m_legalMoveBuffer[m_legalMoveBufferCount++] = m_legalMoves[square][1][i];
+        }
+        for (int i = 7; i > 7 - m_legalMovesCount[square][3]; i--)
+        {
+            m_legalMoveBuffer[m_legalMoveBufferCount++] = m_legalMoves[square][1][i];
+        }
     }
     
     /**
@@ -705,35 +1066,35 @@ public class State
      * @param isKing
      *            Indicates if this piece is the king.
      */
-    private void getMoves(int square, boolean isKing)
-    {
-        int row = square / 9;
-        int col = square % 9;
-        
-        int rowMoves = BitBoardConsts.getLegalMovesHorizontal(col, row, isKing, m_pieces);
-        int colMoves = BitBoardConsts.getLegalMovesVertical(col, row, isKing, m_piecesReflected);
-        
-        /*
-         * Extract the minimum and maximum bounds of the legal moves from the move
-         * integers packed into bits 9-12 and 13-16 respectively.
-         */
-        int baseIndex = row * 9;
-        for (int i = ((rowMoves >> 9) & 0xf); i <= ((rowMoves >> 13) & 0xf); i++)
-        {
-            if ((rowMoves & (1 << i)) != 0)
-            {
-                m_legalMoves[m_legalMoveCount++] = square | ((baseIndex + i) << 7);
-            }
-        }
-        
-        for (int i = ((colMoves >> 9) & 0xf); i <= ((colMoves >> 13) & 0xf); i++)
-        {
-            if ((colMoves & (1 << i)) != 0)
-            {
-                m_legalMoves[m_legalMoveCount++] = square | (((i * 9) + col) << 7);
-            }
-        }
-    }
+//    private void getMoves(int square, boolean isKing)
+//    {
+//        int row = square / 9;
+//        int col = square % 9;
+//        
+//        int rowMoves = BitBoardConsts.getLegalMovesHorizontal(col, row, isKing, m_pieces);
+//        int colMoves = BitBoardConsts.getLegalMovesVertical(col, row, isKing, m_piecesReflected);
+//        
+//        /*
+//         * Extract the minimum and maximum bounds of the legal moves from the move
+//         * integers packed into bits 9-12 and 13-16 respectively.
+//         */
+//        int baseIndex = row * 9;
+//        for (int i = ((rowMoves >> 9) & 0xf); i <= ((rowMoves >> 13) & 0xf); i++)
+//        {
+//            if ((rowMoves & (1 << i)) != 0)
+//            {
+//                m_legalMoves[m_legalMoveCount++] = square | ((baseIndex + i) << 7);
+//            }
+//        }
+//        
+//        for (int i = ((colMoves >> 9) & 0xf); i <= ((colMoves >> 13) & 0xf); i++)
+//        {
+//            if ((colMoves & (1 << i)) != 0)
+//            {
+//                m_legalMoves[m_legalMoveCount++] = square | (((i * 9) + col) << 7);
+//            }
+//        }
+//    }
     
     private int      m_canonicalTransform;
     private BitBoard m_canonical = new BitBoard();
