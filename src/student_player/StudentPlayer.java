@@ -90,14 +90,16 @@ public class StudentPlayer extends TablutPlayer
         // white.set(8, 1);
         //
         // State s = new State(1, 0, black, white, 35);
+
+        //State s = new State(new TablutBoardState());
         
         StudentPlayer player = new StudentPlayer();
         int move0 = player.getBestMove(s, 5 * 1000000000L);
         s.makeMove(move0);
-        int move1 = player.getBestMove(s, 5 * 1000000000L);
-        s.makeMove(move1);
-        int move2 = player.getBestMove(s, 5 * 1000000000L);
-        s.makeMove(move2);
+//        int move1 = player.getBestMove(s, 5 * 1000000000L);
+//        s.makeMove(move1);
+//        int move2 = player.getBestMove(s, 5 * 1000000000L);
+//        s.makeMove(move2);
         Log.info(s);
     }
     
