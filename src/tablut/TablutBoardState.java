@@ -56,7 +56,7 @@ public class TablutBoardState extends BoardState
     private HashSet<Coord> muscoviteCoords;                                 // we can use hashsets because
     private HashSet<Coord> swedeCoords;
     private Coord          kingPosition;
-    private Random         rand         = new Random();
+    private Random         rand         = new Random(System.currentTimeMillis());
     //private Random         rand         = new Random(1917);
     private int            turnPlayer;
     private int            turnNumber   = 1;

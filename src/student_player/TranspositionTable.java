@@ -2,75 +2,74 @@ package student_player;
 
 /**
  * Stores the score of board states that have been visited, so if they are
- * revisited there is no need to reexplore the same child nodes.
+ * revisited along a different branch of the search tree there is no need to
+ * re-explore the same child nodes.
  * 
  * @author Scott Sewell, ID: 260617022
  */
 public class TranspositionTable
 {
-    private static final int  NODE_TYPE_LEN      = 2;
-    private static final long  NODE_TYPE_MASK     = 0b0011L;
+    private static final int  NODE_TYPE_LEN   = 2;
+    private static final long NODE_TYPE_MASK  = 0b0011L;
     
-    private static final int  SCORE_LEN          = 16;
-    private static final int   SCORE_SHIFT        = NODE_TYPE_LEN;
-    private static final long  SCORE_MASK         = 0b1111_1111_1111_1111L << SCORE_SHIFT;
+    private static final int  SCORE_LEN       = 16;
+    private static final int  SCORE_SHIFT     = NODE_TYPE_LEN;
+    private static final long SCORE_MASK      = 0b1111_1111_1111_1111L << SCORE_SHIFT;
     
-    private static final int  MOVE_LEN           = 14;
-    private static final int   MOVE_SHIFT         = SCORE_LEN + SCORE_SHIFT;
-    private static final long  MOVE_MASK          = 0b0011_1111_1111_1111L << MOVE_SHIFT;
+    private static final int  MOVE_LEN        = 14;
+    private static final int  MOVE_SHIFT      = SCORE_LEN + SCORE_SHIFT;
+    private static final long MOVE_MASK       = 0b0011_1111_1111_1111L << MOVE_SHIFT;
     
-    private static final int  DEPTH_LEN          = 5;
-    private static final int  DEPTH_SHIFT        = MOVE_LEN + MOVE_SHIFT;
-    private static final long DEPTH_MASK         = 0b0001_1111L << DEPTH_SHIFT;
+    private static final int  DEPTH_LEN       = 5;
+    private static final int  DEPTH_SHIFT     = MOVE_LEN + MOVE_SHIFT;
+    private static final long DEPTH_MASK      = 0b0001_1111L << DEPTH_SHIFT;
     
-    private static final int  AGE_LEN            = 7;
-    private static final int  AGE_SHIFT          = DEPTH_LEN + DEPTH_SHIFT;
-    private static final long AGE_MASK           = 0b0111_1111L << AGE_SHIFT;
+    private static final int  AGE_LEN         = 7;
+    private static final int  AGE_SHIFT       = DEPTH_LEN + DEPTH_SHIFT;
+    private static final long AGE_MASK        = 0b0111_1111L << AGE_SHIFT;
     
     /**
      * The cost per element stored in bytes.
      */
-    private static final int  ELEMENT_SIZE       = 16 + 16;
+    private static final int  ELEMENT_SIZE    = 16;
     
     /**
      * How many turns ahead a new entry must be to replace older entries.
      */
-    private static final int  REPLACEMENT_AGE    = 10;
+    private static final int  REPLACEMENT_AGE = 10;
     
     /**
      * Node was not found in the table.
      */
-    public static final int   NO_VALUE           = 0;
+    public static final int   NO_VALUE        = 0;
     
     /**
      * Node is a PV node, score is exact.
      */
-    public static final int   PV_NODE            = 1;
+    public static final int   PV_NODE         = 1;
     
     /**
      * Node is an all node, score is an upper bound.
      */
-    public static final int   ALL_NODE           = 2;
+    public static final int   ALL_NODE        = 2;
     
     /**
      * Node is a cut node, score is a lower bound.
      */
-    public static final int   CUT_NODE           = 3;
+    public static final int   CUT_NODE        = 3;
     
     private long[]            m_hashTable;
     private long[]            m_dateTable;
     private int               m_size;
     
-    private int               m_insertQueryCount = 0;
-    private int               m_insertCount      = 0;
-    private int               m_valueQueryCount  = 0;
-    private int               m_hitCount         = 0;
+    private int               m_queryCount    = 0;
+    private int               m_hitCount      = 0;
     
     /**
      * Constructs a transposition table.
      * 
      * @param size
-     *            The size in megabytes.
+     *            The size in megabytes to reserve for the transposition table.
      */
     public TranspositionTable(int size)
     {
@@ -97,8 +96,6 @@ public class TranspositionTable
      */
     public void put(long hash, int nodeType, int depth, int score, int move, int turnNumber)
     {
-        m_insertQueryCount++;
-        
         // get the index to check in the table
         int index = Math.abs((int)(hash % m_size));
         
@@ -120,7 +117,6 @@ public class TranspositionTable
         // if updating the entry store the hash and values
         if (canReplace)
         {
-            m_insertCount++;
             m_hashTable[index] = hash;
             m_dateTable[index] = nodeType | ((long)depth << DEPTH_SHIFT) | ((long)score << SCORE_SHIFT) | ((long)move << MOVE_SHIFT) | ((long)turnNumber << AGE_SHIFT);
         }
@@ -140,7 +136,8 @@ public class TranspositionTable
      */
     public int get(long hash, int depth, int turnNumber)
     {
-        m_valueQueryCount++;
+        m_queryCount++;
+        
         // get the index to check in the table
         int index = Math.abs((int)(hash % m_size));
         
@@ -172,38 +169,41 @@ public class TranspositionTable
     /**
      * Gets the node type from a table value.
      * 
-     * @param value The value returned from the transposition table.
+     * @param value
+     *            The value returned from the transposition table.
      */
     public static int ExtractNodeType(int value)
     {
         return value & (int)NODE_TYPE_MASK;
     }
-
+    
     /**
      * Gets the node score from a table value.
      * 
-     * @param value The value returned from the transposition table.
+     * @param value
+     *            The value returned from the transposition table.
      */
     public static int ExtractScore(int value)
     {
         return (value & (int)SCORE_MASK) >>> SCORE_SHIFT;
     }
-
+    
     /**
      * Gets the node score and best move from a table value.
      * 
-     * @param value The value returned from the transposition table.
+     * @param value
+     *            The value returned from the transposition table.
      */
     public static int ExtractMoveAndScore(int value)
     {
         return (value & (int)(SCORE_MASK | MOVE_MASK)) >>> SCORE_SHIFT;
     }
-
+    
     /**
      * Prints table statistics.
      */
     public void printStatistics()
     {
-        Log.info(String.format("Hits/Queries: %s/%s Inserts/Attempts: %s/%s", m_hitCount, m_valueQueryCount, m_insertCount, m_insertQueryCount));
+        Log.info(String.format("Transposition table hit rate: %.2f", m_hitCount / (float)m_queryCount));
     }
 }

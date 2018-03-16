@@ -23,9 +23,12 @@ import tablut.TablutBoardState;
  * keeps pressure off of the garbage collector and should improve the cache hit
  * rate.
  * 
+ * The state stores all moves that have been made up to the current state,
+ * allowing many moves to be made and unmade easily.
+ * 
  * As well, states can determine the transformation required to get to a
- * canonical state that is shared by any symmetric boards using the symmetries
- * of the square.
+ * canonical state that is shared by any symmetric boards. This is used to make
+ * symmetric boards share a hash so they are considered equivalent.
  * 
  * @author Scott Sewell, ID: 260617022
  */
@@ -42,9 +45,9 @@ public class State
     // private static BitBoard m_allLegalMoves = new BitBoard();
     
     /**
-     * The static constructor. Generates a table containing unique hashes for black,
-     * white, and king piece when on each board square. This is used when computing
-     * board hashes.
+     * The static constructor. Prepares the Zorbist hash values, a table containing
+     * unique hashes for a black, white, or king piece for each board square. This
+     * is used when computing board hashes.
      */
     static
     {
@@ -65,6 +68,7 @@ public class State
     private int      m_turnNumber;
     private int      m_turnPlayer;
     private int      m_winner;
+    private long[]   m_moves           = new long[MAX_TURNS];
     
     private BitBoard m_pieces          = new BitBoard();
     private BitBoard m_piecesReflected = new BitBoard();
@@ -81,11 +85,16 @@ public class State
     /**
      * Creates a board with a given state.
      * 
-     * @param turn The current turn.
-     * @param player The current player.
-     * @param black The positions of all black pieces on the board.
-     * @param white The positions of all white's normal pieces on the board.
-     * @param king The position of the king.
+     * @param turn
+     *            The current turn.
+     * @param player
+     *            The current player.
+     * @param black
+     *            The positions of all black pieces on the board.
+     * @param white
+     *            The positions of all white's normal pieces on the board.
+     * @param king
+     *            The position of the king.
      */
     public State(int turn, int player, BitBoard black, BitBoard white, int king)
     {
@@ -196,9 +205,8 @@ public class State
      *            The move to make. The index of the source square is packed into
      *            bits 0-6. The index of the destination square is packed in bits
      *            7-13.
-     * @return The move with the captured pieces encoded into the higher order bits.
      */
-    public long makeMove(int move)
+    public void makeMove(int move)
     {
         long fullMove = move;
         
@@ -352,6 +360,7 @@ public class State
         // remove captured pieces from the board
         opponentPieces.andNot(m_capturedPieces);
         
+        // update other bitboard with the changed values
         m_pieces.copy(m_black);
         m_pieces.or(m_whiteWithKing);
         m_piecesReflected.copy(m_pieces);
@@ -359,38 +368,43 @@ public class State
         
         generatePiecesLists();
         
+        // store the move
+        m_moves[m_turnNumber - 1] = fullMove;
+        
         // increment the turn
         m_turnNumber++;
         m_turnPlayer = (m_turnPlayer + 1) % 2;
-        
-        // return the move packed with the captured pieces
-        return fullMove;
     }
     
     /**
-     * Undoes a move applied to this state.
-     * 
-     * @param move
-     *            The move to unmake. The bits for the move contain the following information.
-     * @formatter:off
-     *      bits 0-6     the board square index of square moved from
-     *      bits 7-13    the board square index of square moved to
-     *      bits 14      set if a piece was captured
-     *      bits 15-21   the board square index of the piece if captured
-     *      bits 22      set if a second piece was captured
-     *      bits 23-29   the board square index of the piece if captured
-     *      bits 30      set if a third piece was captured
-     *      bits 31-37   the board square index of the piece if captured
-     *      bits 38      set if the king was captured
-     *      bits 39-45   the board square index of the king if captured
-     * @formatter:on
+     * Undoes the move last applied to this state.
      */
-    public void unmakeMove(long move)
+    public void unmakeMove()
     {
         // decrement the turn
         m_turnNumber--;
         m_turnPlayer = (m_turnPlayer + 1) % 2;
         m_winner = Board.NOBODY;
+        
+        // get the most recent move
+        long move = m_moves[m_turnNumber - 1];
+        
+        /*
+         * The format of the move value.
+         * 
+         * @formatter:off
+         *      bits 0-6     the board square index of square moved from
+         *      bits 7-13    the board square index of square moved to
+         *      bits 14      set if a piece was captured
+         *      bits 15-21   the board square index of the piece if captured
+         *      bits 22      set if a second piece was captured
+         *      bits 23-29   the board square index of the piece if captured
+         *      bits 30      set if a third piece was captured
+         *      bits 31-37   the board square index of the piece if captured
+         *      bits 38      set if the king was captured
+         *      bits 39-45   the board square index of the king if captured
+         * @formatter:on
+         */
         
         // extract the board squares moved from and to from the move integer.
         int from = (int)(move & 0x7F);
@@ -548,19 +562,22 @@ public class State
         }
     }
     
-    public static final int WIN_VALUE = 60000;
+    /**
+     * The minimum utility value of a win.
+     */
+    public static final short WIN_VALUE = 30000;
     
     /**
      * Gets the value of this board for the player whose turn it is.
      */
-    public int evaluate()
+    public short evaluate()
     {
         if (isTerminal())
         {
             if (m_winner != Board.NOBODY)
             {
                 // wins closer to turn 1 are considered better
-                return (m_turnPlayer == m_winner ? 1 : -1) * (WIN_VALUE + (MAX_TURNS - m_turnNumber));
+                return (short)((m_turnPlayer == m_winner ? 1 : -1) * (WIN_VALUE + (MAX_TURNS - m_turnNumber)));
             }
             // draw is 0 utility for both players
             return 0;
@@ -584,17 +601,17 @@ public class State
             int cornerDist1 = Math.abs(0 - kingCol) + Math.abs(8 - kingRow);
             int cornerDist2 = Math.abs(8 - kingCol) + Math.abs(0 - kingRow);
             int cornerDist3 = Math.abs(8 - kingCol) + Math.abs(8 - kingRow);
-            int maxDistance = Math.max(Math.max(cornerDist0, cornerDist1), Math.max(cornerDist2, cornerDist3)); 
+            int maxDistance = Math.max(Math.max(cornerDist0, cornerDist1), Math.max(cornerDist2, cornerDist3));
             valueForBlack += maxDistance * KING_CORNER_DISTANCE_VALUE;
             
             // flip the board value if the turn player is white
-            return m_turnPlayer == BLACK ? valueForBlack : -valueForBlack;
+            return (short)(m_turnPlayer == BLACK ? valueForBlack : -valueForBlack);
         }
     }
     
     /**
-     * Computes a hash for the current board. Any boards symmetrically will have the
-     * same hash.
+     * Computes a hash for the current board using the zorbist hashing method. Any
+     * boards symmetrically identical will have the same hash.
      */
     public long calculateHash()
     {
@@ -802,6 +819,10 @@ public class State
         }
     }
     
+    /*
+     * Prints the board in a nice format. Indicates the last moved piece by placing
+     * brackets around it and marks where it moved from with an 'x'.
+     */
     @Override
     public String toString()
     {
@@ -825,45 +846,82 @@ public class State
         {
             str += "Next Move: " + (m_turnPlayer == BLACK ? "Black" : "White");
         }
-
+        
         // print the number of pieces for each team
         str += System.lineSeparator();
         str += "Black Pieces: " + m_black.cardinality() + " ";
         str += "White Pieces: " + m_whiteWithKing.cardinality() + " ";
-
+        
         // print the board nicely formatted
+        long move = (m_turnNumber > 1) ? m_moves[m_turnNumber - 2] : -1;
+        int from = (int)(move & 0x7F);
+        int to = (int)((move >> 7) & 0x7F);
+        
         str += System.lineSeparator();
-        str += "   0 1 2 3 4 5 6 7 8  " + System.lineSeparator();
-        str += "  +-----------------+  " + System.lineSeparator();
+        str += "    0 1 2 3 4 5 6 7 8    " + System.lineSeparator();
+        str += "  +-------------------+  " + System.lineSeparator();
         for (int row = 0; row < 9; row++)
         {
-            str += row + " |";
+            str += row + " | ";
             for (int col = 0; col < 9; col++)
             {
                 int square = (row * 9) + col;
+                boolean isFrom = (from == square);
+                boolean isTo = (to == square);
                 
                 if (m_black.getValue(square))
                 {
-                    str += "b ";
+                    str = FormatPiece(str, "b", isTo);
                 }
                 else if (m_whiteNoKing.getValue(square))
                 {
-                    str += "w ";
+                    str = FormatPiece(str, "w", isTo);
                 }
                 else if (m_kingSquare == square)
                 {
-                    str += "K ";
+                    str = FormatPiece(str, "K", isTo);
                 }
                 else
                 {
-                    str += ". ";
+                    if (BitBoardConsts.onlyKingAllowed.getValue(col, row))
+                    {
+                        str += ". ";
+                    }
+                    else
+                    {
+                        str += isFrom ? "x " : ". ";
+                    }
                 }
             }
-            str = str.substring(0, str.length() - 1);
             str += "| " + row + System.lineSeparator();
         }
-        str += "  +-----------------+  " + System.lineSeparator();
-        str += "   0 1 2 3 4 5 6 7 8  " + System.lineSeparator();
+        str += "  +-------------------+  " + System.lineSeparator();
+        str += "    0 1 2 3 4 5 6 7 8    " + System.lineSeparator();
         return str;
+    }
+    
+    /**
+     * Adds a piece to the board string.
+     * 
+     * @param current
+     *            The current board string.
+     * @param piece
+     *            The character to use for the piece on the board.
+     * @param wasMoved
+     *            Indicates if the piece moved last turn.
+     * @return The new board string.
+     */
+    private String FormatPiece(String current, String piece, boolean wasMoved)
+    {
+        if (wasMoved)
+        {
+            current = current.substring(0, current.length() - 1);
+            current += "(" + piece + ")";
+        }
+        else
+        {
+            current += piece + " ";
+        }
+        return current;
     }
 }

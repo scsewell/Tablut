@@ -1,12 +1,5 @@
 package student_player;
 
-import java.util.Arrays;
-import java.util.Comparator;
-import java.util.Random;
-import java.util.Stack;
-
-import javax.sound.midi.MidiDevice.Info;
-
 import boardgame.Move;
 import tablut.TablutBoardState;
 import tablut.TablutMove;
@@ -22,16 +15,17 @@ public class StudentPlayer extends TablutPlayer
     /**
      * The time allowed to think during the first turn in nanoseconds.
      */
-    private static final long START_TURN_TIMEOUT = (long)(1.98 * 1000000000);
+    private static final long  START_TURN_TIMEOUT   = (long)(1.98 * 1000000000);
     
     /**
      * The time allowed to think during turns following the first turn in
      * nanoseconds.
      */
-    private static final long TURN_TIMEOUT       = (long)(1.98 * 1000000000);
+    private static final long  TURN_TIMEOUT         = (long)(1.98 * 1000000000);
     
-    private long              m_stopTime;
-    private long              m_nodeCount;
+    private TranspositionTable m_transpositionTable = new TranspositionTable(400);
+    private long               m_stopTime;
+    private long               m_nodeCount;
     
     /**
      * Associate this player implementation with my student ID.
@@ -41,139 +35,71 @@ public class StudentPlayer extends TablutPlayer
         super("260617022");
     }
     
+    /**
+     * Contains a few tests.
+     */
     public static void main(String[] args)
     {
-        Random rand = new Random(100);
-        TablutBoardState initialState = new TablutBoardState();
-        
-        // BitBoard black = new BitBoard();
-        // black.set(0, 1);
-        // black.set(0, 3);
-        // black.set(0, 4);
-        // black.set(0, 5);
-        // black.set(1, 4);
-        // black.set(2, 3);
-        // black.set(3, 8);
-        // black.set(4, 7);
-        // black.set(4, 8);
-        // black.set(5, 0);
-        // black.set(5, 8);
-        // black.set(7, 4);
-        // black.set(8, 3);
-        // black.set(8, 4);
-        // black.set(8, 5);
-        //
-        // BitBoard white = new BitBoard();
-        // white.set(3, 4);
-        // white.set(4, 5);
-        // white.set(4, 6);
-        // white.set(5, 4);
-        // white.set(6, 4);
-        //
-        // State s = new State(1, 0, black, white, 4);
-        // Log.info(s);
-        //
-        // StudentPlayer player = new StudentPlayer();
-        // int move0 = player.getBestMove(s, 5 * 1000000000L);
-        // Log.info(BoardUtils.getMoveString(move0));
-        // s.makeMove(move0);
-        // Log.info(s);
-        // int move1 = player.getBestMove(s, 5 * 1000000000L);
-        // Log.info(BoardUtils.getMoveString(move1));
-        // s.makeMove(move1);
-        // Log.info(s);
-        
         BitBoard black = new BitBoard();
+        black.set(0, 1);
         black.set(0, 3);
         black.set(0, 4);
         black.set(0, 5);
-        black.set(2, 2);
-        black.set(3, 0);
-        black.set(3, 2);
-        black.set(4, 1);
+        black.set(1, 4);
+        black.set(2, 3);
+        black.set(3, 8);
         black.set(4, 7);
         black.set(4, 8);
         black.set(5, 0);
-        black.set(6, 6);
         black.set(5, 8);
+        black.set(7, 4);
+        black.set(8, 3);
         black.set(8, 4);
+        black.set(8, 5);
         
         BitBoard white = new BitBoard();
-        white.set(2, 4);
-        white.set(4, 2);
+        white.set(3, 4);
         white.set(4, 5);
-        white.set(5, 6);
-        white.set(6, 2);
-        white.set(8, 1);
+        white.set(4, 6);
+        white.set(5, 4);
+        white.set(6, 4);
         
-        State s = new State(1, 0, black, white, 35);
-        Log.info(s);
+        State s = new State(1, 0, black, white, 4);
+        
+        // BitBoard black = new BitBoard();
+        // black.set(0, 3);
+        // black.set(0, 4);
+        // black.set(0, 5);
+        // black.set(2, 2);
+        // black.set(3, 0);
+        // black.set(3, 2);
+        // black.set(4, 1);
+        // black.set(4, 7);
+        // black.set(4, 8);
+        // black.set(5, 0);
+        // black.set(6, 6);
+        // black.set(5, 8);
+        // black.set(8, 4);
+        //
+        // BitBoard white = new BitBoard();
+        // white.set(2, 4);
+        // white.set(4, 2);
+        // white.set(4, 5);
+        // white.set(5, 6);
+        // white.set(6, 2);
+        // white.set(8, 1);
+        //
+        // State s = new State(1, 0, black, white, 35);
         
         StudentPlayer player = new StudentPlayer();
         int move0 = player.getBestMove(s, 5 * 1000000000L);
-        Log.info(BoardUtils.getMoveString(move0));
         s.makeMove(move0);
+        int move1 = player.getBestMove(s, 5 * 1000000000L);
+        s.makeMove(move1);
+        int move2 = player.getBestMove(s, 5 * 1000000000L);
+        s.makeMove(move2);
         Log.info(s);
-        
-        for (int game = 0; game < 1; game++)
-        {
-            State state = new State(initialState);
-            Stack<Long> moves = new Stack<Long>();
-            while (!state.isTerminal())
-            {
-                int[] legalMoves = state.getAllLegalMoves();
-                int move = legalMoves[rand.nextInt(legalMoves.length)];
-                long moveResult = state.makeMove(move);
-                moves.push(moveResult);
-            }
-            while (!moves.isEmpty())
-            {
-                long move = moves.pop();
-                state.unmakeMove(move);
-            }
-        }
-        
-        long time0 = 0;
-        long time1 = 0;
-        for (int game = 0; game < 1000; game++)
-        {
-            State state = new State(initialState);
-            Stack<Long> moves = new Stack<Long>();
-            while (!state.isTerminal())
-            {
-                int[] legalMoves = state.getAllLegalMoves();
-                int move = legalMoves[rand.nextInt(legalMoves.length)];
-                long t = System.nanoTime();
-                long moveResult = state.makeMove(move);
-                time0 += System.nanoTime() - t;
-                moves.push(moveResult);
-            }
-            while (!moves.isEmpty())
-            {
-                long move = moves.pop();
-                long t = System.nanoTime();
-                state.unmakeMove(move);
-                time1 += System.nanoTime() - t;
-            }
-        }
-        // Log.info(time0 / 1000000000.0f);
-        // Log.info(time1 / 1000000000.0f);
-        
-        // long time1 = 0;
-        // for (int game = 0; game < 10000; game++)
-        // {
-        // TablutBoardState state = new TablutBoardState();
-        // while (!state.gameOver())
-        // {
-        // long t = System.nanoTime();
-        // state.processMove((TablutMove)state.getRandomMove());
-        // time1 += System.nanoTime() - t;
-        // }
-        // }
-        // Log.Info(time1 / 1000000000.0f);
     }
-    
-    private TranspositionTable m_transpositionTable = new TranspositionTable(512);
     
     /**
      * Decides on a move to play.
@@ -188,9 +114,7 @@ public class StudentPlayer extends TablutPlayer
         int turn = boardState.getTurnNumber();
         long timeout = (turn == 1 ? START_TURN_TIMEOUT : TURN_TIMEOUT);
         
-        State state = new State(boardState);
-        Log.info(state);
-        int move = getBestMove(state, timeout);
+        int move = getBestMove(new State(boardState), timeout);
         
         // extract the coordinates of the move from the packed move integer
         int from = move & 0x7F;
@@ -216,6 +140,8 @@ public class StudentPlayer extends TablutPlayer
      */
     private int getBestMove(State currentState, long timeout)
     {
+        Log.info(currentState);
+        
         // get the time we want to have a result by
         long startTime = System.nanoTime();
         m_stopTime = startTime + timeout;
@@ -226,12 +152,13 @@ public class StudentPlayer extends TablutPlayer
         // Iterates until all nodes are explored or time is up.
         int bestMove = 0;
         int maxDepth = currentState.getRemainingMoves();
+        
         for (int depth = 1; depth <= maxDepth; depth++)
         {
             m_nodeCount = 0;
             
             // search for the best move
-            long result = Negamax(currentState, depth, -Integer.MAX_VALUE, Integer.MAX_VALUE);
+            long result = Negamax(currentState, depth, -Short.MAX_VALUE, Short.MAX_VALUE);
             nodesVisited += m_nodeCount;
             
             // unpack the best move and use it if this iteration was completed
@@ -239,24 +166,21 @@ public class StudentPlayer extends TablutPlayer
             {
                 int move = (int)(result >>> 16);
                 // only use valid moves
-                if (move != 0)
+                if (move > 0)
                 {
                     bestMove = move;
-                    Log.info(String.format("bestMove: %s", BoardUtils.getMoveString(bestMove)));
                 }
+                Log.info(String.format("depth finished: %s  move: %s  nodes visited: %s", depth, BoardUtils.getMoveString(bestMove),  m_nodeCount));
             }
             else
             {
                 break;
             }
-            Log.info(String.format("depth completed: %s  nodes visited this iteration: %s", depth, m_nodeCount));
         }
         m_transpositionTable.printStatistics();
         Log.info(String.format("Total nodes visited: %s", nodesVisited));
-        Log.info(String.format("Chosen move: %s", bestMove));
-        Log.info(String.format("Chosen move: %s", BoardUtils.getMoveString(bestMove)));
-        Log.printMemoryUsage();
         Log.info(String.format("Time used: %s", (System.nanoTime() - startTime) / 1000000000.0));
+        Log.printMemoryUsage();
         return bestMove;
     }
     
@@ -324,11 +248,11 @@ public class StudentPlayer extends TablutPlayer
         
         // iterate over all legal moves to find the best heuristic value among the child
         // nodes
-        int bestValue = -Short.MAX_VALUE;
+        short bestValue = -Short.MAX_VALUE;
         int bestMove = 0;
         for (int i = 0; i < legalMoves.length; i++)
         {
-            // if time is up we need to stop searching
+            // if time is up we need to stop searching, and we shouldn't use incomplete search results
             if (System.nanoTime() > m_stopTime)
             {
                 bestValue = -Short.MAX_VALUE;
@@ -336,15 +260,16 @@ public class StudentPlayer extends TablutPlayer
                 return (bestMove << 16) | (bestValue & 0xFFFF);
             }
             
+            int move = legalMoves[i];
             // apply the move to the board
-            long move = state.makeMove(legalMoves[i]);
+            state.makeMove(legalMoves[i]);
             // evaluate this move
             int result = -Negamax(state, depth - 1, -b, -a);
             // undo the move
-            state.unmakeMove(move);
+            state.unmakeMove();
             
             // check if the move is the best found so far
-            int value = result & 0xFFFF;
+            short value = (short)result;
             if (bestValue < value)
             {
                 bestValue = value;
@@ -375,7 +300,7 @@ public class StudentPlayer extends TablutPlayer
             nodeType = TranspositionTable.PV_NODE;
         }
         m_transpositionTable.put(hash, nodeType, depth, bestValue, bestMove, state.getTurnNumber());
-
+        
         // return the best move and best value
         return (bestMove << 16) | (bestValue & 0xFFFF);
     }
