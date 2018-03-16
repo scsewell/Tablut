@@ -65,22 +65,25 @@ public class State
         // }
     }
     
+    private long[]   m_moves               = new long[MAX_TURNS + 1];
+    private long[]   m_hashes              = new long[MAX_TURNS + 1];
+    private int[]    m_canonicalTransforms = new int[MAX_TURNS + 1];
+    
     private int      m_turnNumber;
     private int      m_turnPlayer;
     private int      m_winner;
-    private long[]   m_moves           = new long[MAX_TURNS];
     
-    private BitBoard m_pieces          = new BitBoard();
-    private BitBoard m_piecesReflected = new BitBoard();
-    private BitBoard m_black           = new BitBoard();
-    private BitBoard m_whiteWithKing   = new BitBoard();
-    private BitBoard m_whiteNoKing     = new BitBoard();
+    private BitBoard m_pieces              = new BitBoard();
+    private BitBoard m_piecesReflected     = new BitBoard();
+    private BitBoard m_black               = new BitBoard();
+    private BitBoard m_whiteWithKing       = new BitBoard();
+    private BitBoard m_whiteNoKing         = new BitBoard();
     
-    private int[]    m_blackPieces     = new int[16];
-    private int      m_blackPieceCount = 0;
-    private int[]    m_whitePieces     = new int[8];
-    private int      m_whitePieceCount = 0;
-    private int      m_kingSquare      = NOT_ON_BOARD;
+    private int[]    m_blackPieces         = new int[16];
+    private int      m_blackPieceCount     = 0;
+    private int[]    m_whitePieces         = new int[8];
+    private int      m_whitePieceCount     = 0;
+    private int      m_kingSquare          = NOT_ON_BOARD;
     
     /**
      * Creates a board with a given state.
@@ -106,7 +109,6 @@ public class State
         m_whiteNoKing.copy(white);
         m_whiteWithKing.copy(white);
         m_whiteWithKing.set(king);
-        m_kingSquare = king;
         
         m_pieces.copy(m_black);
         m_pieces.or(m_whiteWithKing);
@@ -114,6 +116,9 @@ public class State
         m_piecesReflected.mirrorDiagonal();
         
         generatePiecesLists();
+        m_kingSquare = king;
+        m_hashes[0] = calculateHash();
+        m_canonicalTransforms[0] = calcCanonicalTransform();
     }
     
     /**
@@ -167,6 +172,9 @@ public class State
                     break;
             }
         }
+        
+        m_hashes[0] = calculateHash();
+        m_canonicalTransforms[0] = calcCanonicalTransform();
     }
     
     /**
@@ -193,10 +201,10 @@ public class State
         return isTerminal() ? 0 : (MAX_TURNS - m_turnNumber + 1);
     }
     
-    private BitBoard m_assistingPieces = new BitBoard();
-    private BitBoard m_capturedPieces  = new BitBoard();
-    private BitBoard m_capturedKing    = new BitBoard();
-    private BitBoard m_escapedKing     = new BitBoard();
+    private BitBoard m_assistingPieces   = new BitBoard();
+    private BitBoard m_capturedPieces    = new BitBoard();
+    private BitBoard m_kingCenterCapture = new BitBoard();
+    private BitBoard m_escapedKing       = new BitBoard();
     
     /**
      * Applies a move to the state.
@@ -209,6 +217,8 @@ public class State
     public void makeMove(int move)
     {
         long fullMove = move;
+        long previousHash = m_hashes[m_turnNumber - 1];
+        int previousTransform = m_canonicalTransforms[m_turnNumber - 1];
         
         // extract the board squares moved from and to from the move integer.
         int from = move & 0x7F;
@@ -220,27 +230,42 @@ public class State
         int toCol = to % 9;
         
         // move the piece on all relevant boards
+        int opponent;
         BitBoard playerPieces;
         BitBoard opponentPieces;
         
         if (m_turnPlayer == BLACK)
         {
+            opponent = WHITE;
             playerPieces = m_black;
             opponentPieces = m_whiteWithKing;
+            
+            // incrementally update the board hash
+            previousHash ^= HASH_KEYS[0][BoardUtils.TRANSFORMED_INDICIES[previousTransform][from]];
+            previousHash ^= HASH_KEYS[0][BoardUtils.TRANSFORMED_INDICIES[previousTransform][to]];
         }
         else
         {
+            opponent = BLACK;
             playerPieces = m_whiteWithKing;
             opponentPieces = m_black;
             
             if (m_kingSquare == from)
             {
                 m_kingSquare = to;
+                
+                // incrementally update the board hash
+                previousHash ^= HASH_KEYS[2][BoardUtils.TRANSFORMED_INDICIES[previousTransform][from]];
+                previousHash ^= HASH_KEYS[2][BoardUtils.TRANSFORMED_INDICIES[previousTransform][to]];
             }
             else
             {
                 m_whiteNoKing.clear(fromCol, fromRow);
                 m_whiteNoKing.set(toCol, toRow);
+                
+                // incrementally update the board hash
+                previousHash ^= HASH_KEYS[1][BoardUtils.TRANSFORMED_INDICIES[previousTransform][from]];
+                previousHash ^= HASH_KEYS[1][BoardUtils.TRANSFORMED_INDICIES[previousTransform][to]];
             }
         }
         
@@ -258,20 +283,18 @@ public class State
         m_capturedPieces.and(opponentPieces);
         m_capturedPieces.and(BitBoardConsts.oneCrosses[to]);
         
-        int kingSquare = m_kingSquare;
-        
         // enforce the special rules for capturing the king
         if (m_turnPlayer == BLACK)
         {
-            m_capturedKing.clear();
-            m_capturedKing.set(m_kingSquare);
-            m_capturedKing.and(m_capturedPieces);
-            m_capturedKing.and(BitBoardConsts.king4Surround);
+            m_kingCenterCapture.clear();
+            m_kingCenterCapture.set(m_kingSquare);
+            m_kingCenterCapture.and(m_capturedPieces);
+            m_kingCenterCapture.and(BitBoardConsts.king4Surround);
             
             // is the king threatened while on the safer center squares?
-            if (!m_capturedKing.isEmpty())
+            if (!m_kingCenterCapture.isEmpty())
             {
-                if (!m_capturedKing.equals(BitBoardConsts.center))
+                if (!m_kingCenterCapture.equals(BitBoardConsts.center))
                 {
                     // the king is not on the center tile of the safer squares, and thus can't be
                     // captured, so remove it from the captured pieces set
@@ -281,10 +304,10 @@ public class State
                 {
                     // the king is on the center tile, so if it is surrounded by four enemies let it
                     // be captured, otherwise remove it from the captured pieces set
-                    m_capturedKing.or(m_black);
-                    m_capturedKing.and(BitBoardConsts.king4Surround);
+                    m_kingCenterCapture.or(m_black);
+                    m_kingCenterCapture.and(BitBoardConsts.king4Surround);
                     
-                    if (!m_capturedKing.equals(BitBoardConsts.king4Surround))
+                    if (!m_kingCenterCapture.equals(BitBoardConsts.king4Surround))
                     {
                         // king should not be captured
                         m_capturedPieces.clear(m_kingSquare);
@@ -292,17 +315,20 @@ public class State
                 }
             }
             
-            // if the king was captured, black wins
+            // remove captured pieces from the boards
+            m_whiteNoKing.andNot(m_capturedPieces);
+            m_whiteWithKing.andNot(m_capturedPieces);
+            
             if (m_capturedPieces.getValue(m_kingSquare))
             {
-                m_winner = BLACK;
-                m_kingSquare = NOT_ON_BOARD;
+                // if the king was captured, black wins
+                m_capturedPieces.clear(m_kingSquare);
+                previousHash ^= HASH_KEYS[2][BoardUtils.TRANSFORMED_INDICIES[previousTransform][m_kingSquare]];
+                fullMove |= (((long)m_kingSquare) << 39) | (1L << 38);
                 
-                fullMove |= (((long)kingSquare) << 39) | (1L << 38);
+                m_kingSquare = NOT_ON_BOARD;
+                m_winner = BLACK;
             }
-            
-            // remove captured pieces extra white boards
-            m_whiteNoKing.andNot(m_capturedPieces);
         }
         else
         {
@@ -316,6 +342,8 @@ public class State
                 // king got away, white wins
                 m_winner = WHITE;
             }
+            
+            m_black.andNot(m_capturedPieces);
         }
         
         // add any captured pieces to the move information
@@ -333,11 +361,9 @@ public class State
                     shiftIndex++;
                     num = num >> shiftIndex;
                     index += shiftIndex;
-                    if (index != kingSquare)
-                    {
-                        fullMove |= (((long)index) << (shift + 1)) | (1L << shift);
-                        shift += 8;
-                    }
+                    previousHash ^= HASH_KEYS[opponent][BoardUtils.TRANSFORMED_INDICIES[previousTransform][index]];
+                    fullMove |= (((long)index) << (shift + 1)) | (1L << shift);
+                    shift += 8;
                 }
                 else
                 {
@@ -357,9 +383,6 @@ public class State
             }
         }
         
-        // remove captured pieces from the board
-        opponentPieces.andNot(m_capturedPieces);
-        
         // update other bitboard with the changed values
         m_pieces.copy(m_black);
         m_pieces.or(m_whiteWithKing);
@@ -367,9 +390,16 @@ public class State
         m_piecesReflected.mirrorDiagonal();
         
         generatePiecesLists();
+        int canonicalTransform = calcCanonicalTransform();
+        if (canonicalTransform != previousTransform)
+        {
+            previousHash = calculateHash();
+        }
+        m_canonicalTransforms[m_turnNumber] = canonicalTransform;
         
-        // store the move
-        m_moves[m_turnNumber - 1] = fullMove;
+        // store the move and hash
+        m_moves[m_turnNumber] = fullMove;
+        m_hashes[m_turnNumber] = previousHash;
         
         // increment the turn
         m_turnNumber++;
@@ -387,7 +417,7 @@ public class State
         m_winner = Board.NOBODY;
         
         // get the most recent move
-        long move = m_moves[m_turnNumber - 1];
+        long move = m_moves[m_turnNumber];
         
         /*
          * The format of the move value.
@@ -511,6 +541,8 @@ public class State
                 num = num >> shiftIndex;
                 index += shiftIndex;
                 m_blackPieces[m_blackPieceCount++] = index;
+                // m_hash ^=
+                // HASH_KEYS[0][BoardUtils.TRANSFORMED_INDICIES[m_canonicalTransform][index]];
             }
             else
             {
@@ -543,6 +575,8 @@ public class State
                 num = num >> shiftIndex;
                 index += shiftIndex;
                 m_whitePieces[m_whitePieceCount++] = index;
+                // m_hash ^=
+                // HASH_KEYS[1][BoardUtils.TRANSFORMED_INDICIES[m_canonicalTransform][index]];
             }
             else
             {
@@ -617,19 +651,19 @@ public class State
     {
         long hash = 0;
         
-        calcCanonicalTransform();
+        int canonicalTransform = calcCanonicalTransform();
         
         for (int i = 0; i < m_blackPieceCount; i++)
         {
-            hash ^= HASH_KEYS[0][BoardUtils.TRANSFORMED_INDICIES[m_canonicalTransform][m_blackPieces[i]]];
+            hash ^= HASH_KEYS[0][BoardUtils.TRANSFORMED_INDICIES[canonicalTransform][m_blackPieces[i]]];
         }
         for (int i = 0; i < m_whitePieceCount; i++)
         {
-            hash ^= HASH_KEYS[1][BoardUtils.TRANSFORMED_INDICIES[m_canonicalTransform][m_whitePieces[i]]];
+            hash ^= HASH_KEYS[1][BoardUtils.TRANSFORMED_INDICIES[canonicalTransform][m_whitePieces[i]]];
         }
         if (m_kingSquare != NOT_ON_BOARD)
         {
-            hash ^= HASH_KEYS[2][BoardUtils.TRANSFORMED_INDICIES[m_canonicalTransform][m_kingSquare]];
+            hash ^= HASH_KEYS[2][BoardUtils.TRANSFORMED_INDICIES[canonicalTransform][m_kingSquare]];
         }
         return hash;
     }
@@ -710,7 +744,7 @@ public class State
      * Computes the transformation for this board to a canonical board such that any
      * symmetrical boards are guarenteed to have the same canonical board.
      */
-    private void calcCanonicalTransform()
+    private int calcCanonicalTransform()
     {
         if (calcCanonicalBoardTransform(m_black))
         {
@@ -719,6 +753,7 @@ public class State
                 calcCanonicalKingTransform();
             }
         }
+        return m_canonicalTransform;
     }
     
     /**

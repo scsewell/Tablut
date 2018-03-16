@@ -204,6 +204,6 @@ public class TranspositionTable
      */
     public void printStatistics()
     {
-        Log.info(String.format("Transposition table hit rate: %.2f", m_hitCount / (float)m_queryCount));
+        Log.info(String.format("Transposition table hit rate: %.4f", m_hitCount / (float)m_queryCount));
     }
 }
