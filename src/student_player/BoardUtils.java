@@ -1,7 +1,5 @@
 package student_player;
 
-import java.util.Random;
-
 /**
  * A class that helps manage board squares.
  * 
@@ -14,25 +12,11 @@ public class BoardUtils
      */
     public static final int[][]  TRANSFORMED_INDICIES = new int[8][81];
     
-    /**
-     * The Zorbist hash values, a table containing unique hashes for a black, white,
-     * or king piece for each board square.
-     */
-    public static final long[][] HASH_KEYS            = new long[3][81];
-    
     /*
      * Creates all of the tile instances.
      */
     static
     {
-        Random rand = new Random(100);
-        for (int i = 0; i < 81; i++)
-        {
-            HASH_KEYS[0][i] = rand.nextLong();
-            HASH_KEYS[1][i] = rand.nextLong();
-            HASH_KEYS[2][i] = rand.nextLong();
-        }
-        
         for (int transformation = 0; transformation < 8; transformation++)
         {
             for (int square = 0; square < 81; square++)

@@ -105,15 +105,15 @@ public class State
         hash = 0;
         for (int i = 0; i < blackCount; i++)
         {
-            hash ^= BoardUtils.HASH_KEYS[0][blackPieces[i]];
+            hash ^= StateExplorer.HASH_KEYS[0][blackPieces[i]];
         }
         for (int i = 0; i < whiteCount; i++)
         {
-            hash ^= BoardUtils.HASH_KEYS[1][whitePieces[i]];
+            hash ^= StateExplorer.HASH_KEYS[1][whitePieces[i]];
         }
         if (kingSquare != NOT_ON_BOARD)
         {
-            hash ^= BoardUtils.HASH_KEYS[2][kingSquare];
+            hash ^= StateExplorer.HASH_KEYS[2][kingSquare];
         }
     }
     

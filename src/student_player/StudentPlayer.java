@@ -25,7 +25,7 @@ public class StudentPlayer extends TablutPlayer
      */
     private static final long  TURN_TIMEOUT         = (long)(1.98 * 1000000000);
     
-    private TranspositionTable m_transpositionTable = new TranspositionTable(400);
+    private TranspositionTable m_transpositionTable = new TranspositionTable(460);
     private long               m_stopTime;
     private int                m_nodeCount;
     
@@ -46,56 +46,61 @@ public class StudentPlayer extends TablutPlayer
         BitBoard white = new BitBoard();
         StateExplorer s;
         
-        black.set(0, 1);
+//        black.set(0, 1);
+//        black.set(0, 3);
+//        black.set(0, 4);
+//        black.set(0, 5);
+//        black.set(1, 4);
+//        black.set(2, 3);
+//        black.set(3, 8);
+//        black.set(4, 7);
+//        black.set(4, 8);
+//        black.set(5, 0);
+//        black.set(5, 8);
+//        black.set(7, 4);
+//        black.set(8, 3);
+//        black.set(8, 4);
+//        black.set(8, 5);
+//        
+//        white.set(3, 4);
+//        white.set(4, 5);
+//        white.set(4, 6);
+//        white.set(5, 4);
+//        white.set(6, 4);
+//        
+//        s = new StateExplorer(1, new State(black, white, 4));
+
+        black = new BitBoard();
         black.set(0, 3);
         black.set(0, 4);
         black.set(0, 5);
-        black.set(1, 4);
-        black.set(2, 3);
-        black.set(3, 8);
+        black.set(2, 2);
+        black.set(3, 0);
+        black.set(3, 2);
+        black.set(4, 0);
         black.set(4, 7);
         black.set(4, 8);
         black.set(5, 0);
         black.set(5, 8);
         black.set(7, 4);
-        black.set(8, 3);
+        black.set(8, 2);
         black.set(8, 4);
-        black.set(8, 5);
         
-        white.set(3, 4);
+        //black.set(8, 5);
+        black.set(5, 5);
+        
+        white = new BitBoard();
+        white.set(2, 4);
+        white.set(4, 2);
+        white.set(4, 3);
         white.set(4, 5);
-        white.set(4, 6);
-        white.set(5, 4);
-        white.set(6, 4);
+        white.set(5, 1);
+        white.set(5, 6);
+        white.set(6, 2);
         
-        s = new StateExplorer(1, new State(black, white, 4));
+        s = new StateExplorer(2, new State(black, white, 40));
         
-        // BitBoard black = new BitBoard();
-        // black.set(0, 3);
-        // black.set(0, 4);
-        // black.set(0, 5);
-        // black.set(2, 2);
-        // black.set(3, 0);
-        // black.set(3, 2);
-        // black.set(4, 1);
-        // black.set(4, 7);
-        // black.set(4, 8);
-        // black.set(5, 0);
-        // black.set(6, 6);
-        // black.set(5, 8);
-        // black.set(8, 4);
-        //
-        // BitBoard white = new BitBoard();
-        // white.set(2, 4);
-        // white.set(4, 2);
-        // white.set(4, 5);
-        // white.set(5, 6);
-        // white.set(6, 2);
-        // white.set(8, 1);
-        //
-        //s = new StateExplorer(1, new State(black, white, 35));
-        
-        s = new StateExplorer(new TablutBoardState());
+        // s = new StateExplorer(new TablutBoardState());
         
         StudentPlayer player = new StudentPlayer();
         int move0 = player.getBestMove(s, 5 * 1000000000L);
@@ -215,31 +220,36 @@ public class StudentPlayer extends TablutPlayer
         // check if we have visited this state before and know some information about it
         long hash = state.getHash();
         int entry = m_transpositionTable.get(hash, depth, state.getTurnNumber());
+        int tableMove = Integer.MIN_VALUE;
         
         // if the entry is valid use the stored information
         if (entry != TranspositionTable.NO_VALUE)
         {
             int score = TranspositionTable.ExtractScore(entry);
-            int move = 0;
+            tableMove = TranspositionTable.ExtractMove(entry);
+            int entryDepth = TranspositionTable.ExtractDepth(entry);
             
-            // the score represents a different value based on the node type
-            switch (TranspositionTable.ExtractNodeType(entry))
+            // this entry stores more complete search information to a greater or equal
+            // depth, so we can just use the stored values
+            if (entryDepth >= depth)
             {
-                case TranspositionTable.PV_NODE:
-                    move = TranspositionTable.ExtractMove(entry);
-                    return (score << 16) | (move & 0xFFFF);
-                case TranspositionTable.CUT_NODE:
-                    a = Math.max(a, score);
-                    break;
-                case TranspositionTable.ALL_NODE:
-                    b = Math.min(b, score);
-                    break;
+                // the score represents a different value based on the node type
+                switch (TranspositionTable.ExtractNodeType(entry))
+                {
+                    case TranspositionTable.PV_NODE:
+                        return (score << 16) | (tableMove & 0xFFFF);
+                    case TranspositionTable.CUT_NODE:
+                        a = Math.max(a, score);
+                        break;
+                    case TranspositionTable.ALL_NODE:
+                        b = Math.min(b, score);
+                        break;
+                }
             }
-            
             // alpha-beta prune
             if (a >= b)
             {
-                return (score << 16) | (move & 0xFFFF);
+                return (score << 16) | (tableMove & 0xFFFF);
             }
         }
         
@@ -249,28 +259,34 @@ public class StudentPlayer extends TablutPlayer
             return state.evaluate() << 16;
         }
         
-        // generate all legal moves for this state
+        // get all legal moves for this state
         int[] legalMoves = state.getAllLegalMoves();
         
-        // try to place the best moves first, as it greatly improves the pruning
-        // performance
-        // int[] sortedMoves = new int[legalMoves.length];
-        // for (int i = 0; i < legalMoves.length; i++)
-        // {
-        // int move = legalMoves[i];
-        // state.makeMove(move);
-        // int result = -Negamax(state, Math.min(depth - 1, 1), -b, -a);
-        // state.unmakeMove();
-        //
-        // sortedMoves[i] = (result & 0xFFFF0000) | (move & 0xFFFF);
-        // }
-        // Arrays.sort(sortedMoves);
+        // put the best move from the previous search iteration first to get more prunes
+        if (tableMove != Integer.MIN_VALUE)
+        {
+            int prev = legalMoves[0];
+            legalMoves[0] = tableMove;
+            for (int i = 1; i < legalMoves.length; i++)
+            {
+                int curr = legalMoves[i];
+                legalMoves[i] = prev;
+                
+                if (curr == tableMove)
+                {
+                    break;
+                }
+                else
+                {
+                    prev = curr;
+                }
+            }
+        }
         
         // iterate over all legal moves to find the best heuristic value among the child
         // nodes
         int bestMove = 0;
         int bestValue = -Short.MAX_VALUE;
-        // for (int i = sortedMoves.length - 1; i >= 0; i--)
         for (int i = 0; i < legalMoves.length; i++)
         {
             // if time is up we need to stop searching, and we shouldn't use incomplete

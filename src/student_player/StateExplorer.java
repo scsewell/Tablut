@@ -27,13 +27,37 @@ import tablut.TablutBoardState;
  */
 public class StateExplorer
 {
-    public static final int BLACK       = 0;
-    public static final int WHITE       = 1;
-    public static final int MAX_MOVES   = 100;
+    public static final int      BLACK     = 0;
+    public static final int      WHITE     = 1;
+    public static final int      MAX_MOVES = 100;
+    
+    /**
+     * The Zorbist hash values, a table containing unique hashes for a black, white,
+     * or king piece for each board square.
+     */
+    public static final long[][] HASH_KEYS;
+    public static final long     PLAYER_HASH;
+    
+    /*
+     * Creates all of the tile instances.
+     */
+    static
+    {
+        Random rand = new Random(100);
+        
+        HASH_KEYS = new long[3][81];
+        for (int i = 0; i < 81; i++)
+        {
+            HASH_KEYS[0][i] = rand.nextLong();
+            HASH_KEYS[1][i] = rand.nextLong();
+            HASH_KEYS[2][i] = rand.nextLong();
+        }
+        PLAYER_HASH = rand.nextLong();
+    }
     
     private final Evaluator m_evaluator = new Evaluator();
     private final State[]   m_stack;
-    private int             m_startTurn;
+    private final int       m_startTurn;
     
     private State           m_currentState;
     private int             m_turnNumber;
@@ -54,21 +78,11 @@ public class StateExplorer
         // player
         m_turnNumber = Math.min(Math.max(turn, 1), MAX_MOVES) - 1;
         m_startTurn = m_turnNumber;
-        m_turnPlayer = m_turnNumber % 2;
-        m_winner = Board.NOBODY;
         
         // initialize the state stack with enough states to play out any remaining moves
-        m_stack = new State[(1 + MAX_MOVES) - m_turnNumber];
+        m_stack = new State[(1 + MAX_MOVES) - m_startTurn];
         
-        for (int i = 0; i < m_stack.length; i++)
-        {
-            m_stack[i] = new State();
-        }
-        
-        m_currentState = m_stack[0];
-        m_currentState.copy(state);
-        m_currentState.updatePieceLists();
-        m_currentState.calculateHash();
+        initialize(state);
     }
     
     /**
@@ -79,20 +93,7 @@ public class StateExplorer
      */
     public StateExplorer(TablutBoardState state)
     {
-        // increment turn with every move rather then every other move
-        m_turnNumber = (2 * (state.getTurnNumber() - 1)) + state.getTurnPlayer();
-        m_startTurn = m_turnNumber;
-        m_turnPlayer = m_turnNumber % 2;
-        m_winner = state.getWinner();
-        
-        // initialize the state stack with enough states to play out any remaining moves
-        m_stack = new State[(1 + MAX_MOVES) - m_turnNumber];
-        
-        for (int i = 0; i < m_stack.length; i++)
-        {
-            m_stack[i] = new State();
-        }
-        m_currentState = m_stack[0];
+        State initialState = new State();
         
         // copy all board squares
         for (int i = 0; i < 81; i++)
@@ -102,19 +103,46 @@ public class StateExplorer
             switch (state.getPieceAt(Coordinates.get(col, row)))
             {
                 case BLACK:
-                    m_currentState.black.set(i);
+                    initialState.black.set(i);
                     break;
                 case WHITE:
-                    m_currentState.white.set(i);
+                    initialState.white.set(i);
                     break;
                 case KING:
-                    m_currentState.kingSquare = i;
+                    initialState.kingSquare = i;
                     break;
                 default:
                     break;
             }
         }
         
+        // increment turn with every move rather then every other move
+        m_turnNumber = (2 * (state.getTurnNumber() - 1)) + state.getTurnPlayer();
+        m_startTurn = m_turnNumber;
+        
+        // initialize the state stack with enough states to play out any remaining moves
+        m_stack = new State[(1 + MAX_MOVES) - m_startTurn];
+        
+        initialize(initialState);
+    }
+    
+    /**
+     * Sets up the state exploration.
+     * 
+     * @param state
+     *            The initial state.
+     */
+    public void initialize(State state)
+    {
+        m_turnPlayer = m_turnNumber % 2;
+        m_winner = Board.NOBODY;
+        
+        for (int i = 0; i < m_stack.length; i++)
+        {
+            m_stack[i] = new State();
+        }
+        m_currentState = m_stack[0];
+        m_currentState.copy(state);
         m_currentState.updatePieceLists();
         m_currentState.calculateHash();
     }
@@ -194,6 +222,8 @@ public class StateExplorer
         m_currentState = nextState;
         m_currentState.move = move;
         
+        m_currentState.hash ^= PLAYER_HASH;
+        
         // extract the board squares moved from and to from the move integer.
         int from = move & 0x7F;
         int to = (move >> 7) & 0x7F;
@@ -214,8 +244,8 @@ public class StateExplorer
             m_currentState.black.set(toCol, toRow);
             
             // incrementally update the board hash
-            m_currentState.hash ^= BoardUtils.HASH_KEYS[0][from];
-            m_currentState.hash ^= BoardUtils.HASH_KEYS[0][to];
+            m_currentState.hash ^= HASH_KEYS[0][from];
+            m_currentState.hash ^= HASH_KEYS[0][to];
             
             // find pieces that can help the moved piece make a capture
             m_assistingPieces.copy(m_currentState.black);
@@ -268,7 +298,7 @@ public class StateExplorer
             if (m_capturedPieces.getValue(m_currentState.kingSquare))
             {
                 m_capturedPieces.clear(m_currentState.kingSquare);
-                m_currentState.hash ^= BoardUtils.HASH_KEYS[2][m_currentState.kingSquare];
+                m_currentState.hash ^= HASH_KEYS[2][m_currentState.kingSquare];
                 
                 m_currentState.kingSquare = State.NOT_ON_BOARD;
                 m_winner = BLACK;
@@ -283,8 +313,8 @@ public class StateExplorer
                 m_currentState.kingSquare = to;
                 
                 // incrementally update the board hash
-                m_currentState.hash ^= BoardUtils.HASH_KEYS[2][from];
-                m_currentState.hash ^= BoardUtils.HASH_KEYS[2][to];
+                m_currentState.hash ^= HASH_KEYS[2][from];
+                m_currentState.hash ^= HASH_KEYS[2][to];
             }
             else
             {
@@ -292,8 +322,8 @@ public class StateExplorer
                 m_currentState.white.set(toCol, toRow);
                 
                 // incrementally update the board hash
-                m_currentState.hash ^= BoardUtils.HASH_KEYS[1][from];
-                m_currentState.hash ^= BoardUtils.HASH_KEYS[1][to];
+                m_currentState.hash ^= HASH_KEYS[1][from];
+                m_currentState.hash ^= HASH_KEYS[1][to];
             }
             
             // find pieces that can help the moved piece make a capture
@@ -337,7 +367,7 @@ public class StateExplorer
                     shiftIndex++;
                     num = num >> shiftIndex;
                     index += shiftIndex;
-                    m_currentState.hash ^= BoardUtils.HASH_KEYS[opponent][index];
+                    m_currentState.hash ^= HASH_KEYS[opponent][index];
                 }
                 else
                 {
@@ -404,10 +434,6 @@ public class StateExplorer
         }
         else
         {
-            if (m_currentState.kingSquare < 0)
-            {
-                Log.info(this);
-            }
             getMoves(m_currentState.kingSquare, true);
             
             for (int i = 0; i < m_currentState.whiteCount; i++)

@@ -155,13 +155,8 @@ public class TranspositionTable
                 return NO_VALUE;
             }
             
-            // the value is only valid while the distance to the root node remains the same
-            int entryDepth = (int)(data & DEPTH_MASK) >>> DEPTH_SHIFT;
-            if (entryDepth >= depth)
-            {
-                m_hitCount++;
-                return (int)(data & (NODE_TYPE_MASK | SCORE_MASK | MOVE_MASK));
-            }
+            m_hitCount++;
+            return (int)(data & (NODE_TYPE_MASK | SCORE_MASK | MOVE_MASK | DEPTH_MASK));
         }
         return NO_VALUE;
     }
@@ -197,6 +192,17 @@ public class TranspositionTable
     public static int ExtractMove(int value)
     {
         return (value & (int)MOVE_MASK) >>> MOVE_SHIFT;
+    }
+    
+    /**
+     * Gets the depth from a table value.
+     * 
+     * @param value
+     *            The value returned from the transposition table.
+     */
+    public static int ExtractDepth(int value)
+    {
+        return (value & (int)DEPTH_MASK) >>> DEPTH_SHIFT;
     }
     
     /**

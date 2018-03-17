@@ -10,7 +10,7 @@ import coordinates.Coordinates;
 
 public class GreedyTablutPlayer extends TablutPlayer
 {
-    private Random rand = new Random(1848);
+    private Random rand = new Random();
 
     public GreedyTablutPlayer()
     {
