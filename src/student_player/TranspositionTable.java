@@ -11,17 +11,17 @@ public class TranspositionTable
 {
     private static final int  NODE_TYPE_LEN   = 2;
     private static final long NODE_TYPE_MASK  = 0b0011L;
-    
-    private static final int  SCORE_LEN       = 16;
-    private static final int  SCORE_SHIFT     = NODE_TYPE_LEN;
-    private static final long SCORE_MASK      = 0b1111_1111_1111_1111L << SCORE_SHIFT;
-    
+
     private static final int  MOVE_LEN        = 14;
-    private static final int  MOVE_SHIFT      = SCORE_LEN + SCORE_SHIFT;
+    private static final int  MOVE_SHIFT      = NODE_TYPE_LEN;
     private static final long MOVE_MASK       = 0b0011_1111_1111_1111L << MOVE_SHIFT;
     
+    private static final int  SCORE_LEN       = 16;
+    private static final int  SCORE_SHIFT     = MOVE_LEN + MOVE_SHIFT;
+    private static final long SCORE_MASK      = 0b1111_1111_1111_1111L << SCORE_SHIFT;
+    
     private static final int  DEPTH_LEN       = 5;
-    private static final int  DEPTH_SHIFT     = MOVE_LEN + MOVE_SHIFT;
+    private static final int  DEPTH_SHIFT     = SCORE_LEN + SCORE_SHIFT;
     private static final long DEPTH_MASK      = 0b0001_1111L << DEPTH_SHIFT;
     
     private static final int  AGE_LEN         = 7;
@@ -118,7 +118,7 @@ public class TranspositionTable
         if (canReplace)
         {
             m_hashTable[index] = hash;
-            m_dateTable[index] = nodeType | ((long)depth << DEPTH_SHIFT) | ((long)score << SCORE_SHIFT) | ((long)move << MOVE_SHIFT) | ((long)turnNumber << AGE_SHIFT);
+            m_dateTable[index] = nodeType | ((long)move << MOVE_SHIFT) | ((long)score << SCORE_SHIFT) | ((long)depth << DEPTH_SHIFT) | ((long)turnNumber << AGE_SHIFT);
         }
     }
     
@@ -185,18 +185,18 @@ public class TranspositionTable
      */
     public static int ExtractScore(int value)
     {
-        return (value & (int)SCORE_MASK) >>> SCORE_SHIFT;
+        return (value & (int)SCORE_MASK) >> SCORE_SHIFT;
     }
     
     /**
-     * Gets the node score and best move from a table value.
+     * Gets the best move from a table value.
      * 
      * @param value
      *            The value returned from the transposition table.
      */
-    public static int ExtractMoveAndScore(int value)
+    public static int ExtractMove(int value)
     {
-        return (value & (int)(SCORE_MASK | MOVE_MASK)) >>> SCORE_SHIFT;
+        return (value & (int)MOVE_MASK) >>> MOVE_SHIFT;
     }
     
     /**

@@ -1,5 +1,7 @@
 package student_player;
 
+import java.util.Arrays;
+
 import boardgame.Move;
 import tablut.TablutBoardState;
 import tablut.TablutMove;
@@ -25,7 +27,7 @@ public class StudentPlayer extends TablutPlayer
     
     private TranspositionTable m_transpositionTable = new TranspositionTable(400);
     private long               m_stopTime;
-    private long               m_nodeCount;
+    private int                m_nodeCount;
     
     /**
      * Associate this player implementation with my student ID.
@@ -41,6 +43,9 @@ public class StudentPlayer extends TablutPlayer
     public static void main(String[] args)
     {
         BitBoard black = new BitBoard();
+        BitBoard white = new BitBoard();
+        StateExplorer s;
+        
         black.set(0, 1);
         black.set(0, 3);
         black.set(0, 4);
@@ -57,14 +62,13 @@ public class StudentPlayer extends TablutPlayer
         black.set(8, 4);
         black.set(8, 5);
         
-        BitBoard white = new BitBoard();
         white.set(3, 4);
         white.set(4, 5);
         white.set(4, 6);
         white.set(5, 4);
         white.set(6, 4);
         
-        State s = new State(1, 0, black, white, 4);
+        s = new StateExplorer(1, new State(black, white, 4));
         
         // BitBoard black = new BitBoard();
         // black.set(0, 3);
@@ -89,9 +93,9 @@ public class StudentPlayer extends TablutPlayer
         // white.set(6, 2);
         // white.set(8, 1);
         //
-        // State s = new State(1, 0, black, white, 35);
+        //s = new StateExplorer(1, new State(black, white, 35));
         
-        //State s = new State(new TablutBoardState());
+        s = new StateExplorer(new TablutBoardState());
         
         StudentPlayer player = new StudentPlayer();
         int move0 = player.getBestMove(s, 5 * 1000000000L);
@@ -116,7 +120,7 @@ public class StudentPlayer extends TablutPlayer
         int turn = boardState.getTurnNumber();
         long timeout = (turn == 1 ? START_TURN_TIMEOUT : TURN_TIMEOUT);
         
-        int move = getBestMove(new State(boardState), timeout);
+        int move = getBestMove(new StateExplorer(boardState), timeout);
         
         // extract the coordinates of the move from the packed move integer
         int from = move & 0x7F;
@@ -140,7 +144,7 @@ public class StudentPlayer extends TablutPlayer
      *            How much time to take searching in nanoseconds.
      * @return The chosen move.
      */
-    private int getBestMove(State currentState, long timeout)
+    private int getBestMove(StateExplorer currentState, long timeout)
     {
         Log.info(currentState);
         
@@ -160,19 +164,20 @@ public class StudentPlayer extends TablutPlayer
             m_nodeCount = 0;
             
             // search for the best move
-            long result = Negamax(currentState, depth, -Short.MAX_VALUE, Short.MAX_VALUE);
-            nodesVisited += m_nodeCount;
+            int result = Negamax(currentState, depth, -Short.MAX_VALUE, Short.MAX_VALUE);
+            nodesVisited = m_nodeCount;
             
             // unpack the best move and use it if this iteration was completed
             if (System.nanoTime() < m_stopTime)
             {
-                int move = (int)(result >>> 16);
+                int move = result & 0xFFFF;
                 // only use valid moves
                 if (move > 0)
                 {
                     bestMove = move;
                 }
-                Log.info(String.format("depth finished: %s  move: %s  nodes visited: %s", depth, BoardUtils.getMoveString(bestMove),  m_nodeCount));
+                Log.info(String.format("depth finished: %s  move: %s  nodes visited: %s", depth,
+                        BoardUtils.getMoveString(bestMove), m_nodeCount));
             }
             else
             {
@@ -198,48 +203,50 @@ public class StudentPlayer extends TablutPlayer
      *            The alpha value.
      * @param b
      *            The beta value.
-     * @return The value of this node in the lower 16 bits and the best move in the
-     *         upper 16 bits.
+     * @return The value of this node in the upper 16 bits and the best move in the
+     *         lower 16 bits.
      */
-    private int Negamax(State state, int depth, int a, int b)
+    private int Negamax(StateExplorer state, int depth, int a, int b)
     {
         m_nodeCount++;
         
         int aOrig = a;
         
         // check if we have visited this state before and know some information about it
-        long hash = state.calculateHash();
+        long hash = state.getHash();
         int entry = m_transpositionTable.get(hash, depth, state.getTurnNumber());
         
-        // if the entry is valid use the stored data
+        // if the entry is valid use the stored information
         if (entry != TranspositionTable.NO_VALUE)
         {
+            int score = TranspositionTable.ExtractScore(entry);
+            int move = 0;
+            
             // the score represents a different value based on the node type
             switch (TranspositionTable.ExtractNodeType(entry))
             {
                 case TranspositionTable.PV_NODE:
-                    // the exact value and best move are known
-                    return TranspositionTable.ExtractMoveAndScore(entry);
+                    move = TranspositionTable.ExtractMove(entry);
+                    return (score << 16) | (move & 0xFFFF);
                 case TranspositionTable.CUT_NODE:
-                    // this node contains a lower bound
-                    a = Math.max(a, TranspositionTable.ExtractScore(entry));
+                    a = Math.max(a, score);
                     break;
                 case TranspositionTable.ALL_NODE:
-                    // this node contains an upper bound
-                    b = Math.min(b, TranspositionTable.ExtractScore(entry));
+                    b = Math.min(b, score);
                     break;
             }
+            
             // alpha-beta prune
             if (a >= b)
             {
-                return TranspositionTable.ExtractMoveAndScore(entry);
+                return (score << 16) | (move & 0xFFFF);
             }
         }
         
         // If a leaf state evaluate and return the value
         if (depth == 0 || state.isTerminal())
         {
-            return state.evaluate();
+            return state.evaluate() << 16;
         }
         
         // generate all legal moves for this state
@@ -247,35 +254,49 @@ public class StudentPlayer extends TablutPlayer
         
         // try to place the best moves first, as it greatly improves the pruning
         // performance
+        // int[] sortedMoves = new int[legalMoves.length];
+        // for (int i = 0; i < legalMoves.length; i++)
+        // {
+        // int move = legalMoves[i];
+        // state.makeMove(move);
+        // int result = -Negamax(state, Math.min(depth - 1, 1), -b, -a);
+        // state.unmakeMove();
+        //
+        // sortedMoves[i] = (result & 0xFFFF0000) | (move & 0xFFFF);
+        // }
+        // Arrays.sort(sortedMoves);
         
         // iterate over all legal moves to find the best heuristic value among the child
         // nodes
-        short bestValue = -Short.MAX_VALUE;
         int bestMove = 0;
+        int bestValue = -Short.MAX_VALUE;
+        // for (int i = sortedMoves.length - 1; i >= 0; i--)
         for (int i = 0; i < legalMoves.length; i++)
         {
-            // if time is up we need to stop searching, and we shouldn't use incomplete search results
+            // if time is up we need to stop searching, and we shouldn't use incomplete
+            // search results
             if (System.nanoTime() > m_stopTime)
             {
                 bestValue = -Short.MAX_VALUE;
                 bestMove = 0;
-                return (bestMove << 16) | (bestValue & 0xFFFF);
+                return (bestValue << 16) | (bestMove & 0xFFFF);
             }
             
+            // int move = sortedMoves[i] & 0xFFFF;
             int move = legalMoves[i];
             // apply the move to the board
-            state.makeMove(legalMoves[i]);
+            state.makeMove(move);
             // evaluate this move
             int result = -Negamax(state, depth - 1, -b, -a);
             // undo the move
             state.unmakeMove();
             
             // check if the move is the best found so far
-            short value = (short)result;
+            int value = result >> 16;
             if (bestValue < value)
             {
                 bestValue = value;
-                bestMove = (int)(move & 0x3FFFL);
+                bestMove = move & 0xFFFF;
             }
             
             // update the lower bound
@@ -304,6 +325,6 @@ public class StudentPlayer extends TablutPlayer
         m_transpositionTable.put(hash, nodeType, depth, bestValue, bestMove, state.getTurnNumber());
         
         // return the best move and best value
-        return (bestMove << 16) | (bestValue & 0xFFFF);
+        return (bestValue << 16) | (bestMove & 0xFFFF);
     }
 }
