@@ -62,9 +62,6 @@ public class TranspositionTable
     private long[]            m_dateTable;
     private int               m_size;
     
-    private int               m_queryCount    = 0;
-    private int               m_hitCount      = 0;
-    
     /**
      * Constructs a transposition table.
      * 
@@ -136,8 +133,6 @@ public class TranspositionTable
      */
     public int get(long hash, int depth, int turnNumber)
     {
-        m_queryCount++;
-        
         // get the index to check in the table
         int index = Math.abs((int)(hash % m_size));
         
@@ -154,8 +149,6 @@ public class TranspositionTable
                 m_hashTable[index] = 0;
                 return NO_VALUE;
             }
-            
-            m_hitCount++;
             return (int)(data & (NODE_TYPE_MASK | SCORE_MASK | MOVE_MASK | DEPTH_MASK));
         }
         return NO_VALUE;
@@ -203,13 +196,5 @@ public class TranspositionTable
     public static int ExtractDepth(int value)
     {
         return (value & (int)DEPTH_MASK) >>> DEPTH_SHIFT;
-    }
-    
-    /**
-     * Prints table statistics.
-     */
-    public void printStatistics()
-    {
-        Log.info(String.format("Transposition table hit rate: %.4f", m_hitCount / (float)m_queryCount));
     }
 }

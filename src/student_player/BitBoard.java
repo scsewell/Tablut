@@ -574,6 +574,94 @@ public class BitBoard
     }
     
     /**
+     * Shifts the board left one.
+     */
+    public void shiftLeftOne()
+    {
+        final int k1 = 0b00000_111111110_111111110_111111110;
+        d1 = ((d1 & k1) >>> 1);
+        d0 = ((d0 & k1) >>> 1);
+        d2 = ((d2 & k1) >>> 1);
+    }
+    
+    /**
+     * Shifts the board right one.
+     */
+    public void shiftRightOne()
+    {
+        final int k1 = 0b00000_011111111_011111111_011111111;
+        d1 = ((d1 & k1) << 1);
+        d0 = ((d0 & k1) << 1);
+        d2 = ((d2 & k1) << 1);
+    }
+    
+    /**
+     * Shifts the board down one.
+     */
+    public void shiftDownOne()
+    {
+        int t1 = d1;
+        d1 = ((d1 << 9) & VALID_BITS_MASK) | (d0 >> ROW_3_SHIFT);
+        d0 = ((d0 << 9) & VALID_BITS_MASK);
+        d2 = ((d2 << 9) & VALID_BITS_MASK) | (t1 >> ROW_3_SHIFT);
+    }
+    
+    /**
+     * Shifts the board up one.
+     */
+    public void shiftUpOne()
+    {
+        int t1 = d1;
+        d1 = (d1 >> 9) | ((d2 & ROW_MASK_1) << ROW_3_SHIFT);
+        d0 = (d0 >> 9) | ((t1 & ROW_MASK_1) << ROW_3_SHIFT);
+        d2 = (d2 >> 9);
+    }
+    
+    /**
+     * Shifts the board left two.
+     */
+    public void shiftLeftTwo()
+    {
+        final int k1 = 0b00000_111111100_111111100_111111100;
+        d1 = ((d1 & k1) >>> 2);
+        d0 = ((d0 & k1) >>> 2);
+        d2 = ((d2 & k1) >>> 2);
+    }
+    
+    /**
+     * Shifts the board right two.
+     */
+    public void shiftRightTwo()
+    {
+        final int k1 = 0b00000_001111111_001111111_001111111;
+        d1 = ((d1 & k1) << 2);
+        d0 = ((d0 & k1) << 2);
+        d2 = ((d2 & k1) << 2);
+    }
+    
+    /**
+     * Shifts the board down two.
+     */
+    public void shiftDownTwo()
+    {
+        int t1 = d1;
+        d1 = ((d1 << 18) & VALID_BITS_MASK) | (d0 >> ROW_2_SHIFT);
+        d0 = ((d0 << 18) & VALID_BITS_MASK);
+        d2 = ((d2 << 18) & VALID_BITS_MASK) | (t1 >> ROW_2_SHIFT);
+    }
+    
+    /**
+     * Shifts the board up two.
+     */
+    public void shiftUpTwo()
+    {
+        int t1 = d1;
+        d1 = (d1 >> 18) | ((d2 & (ROW_MASK_1 | ROW_MASK_2)) << ROW_2_SHIFT);
+        d0 = (d0 >> 18) | ((t1 & (ROW_MASK_1 | ROW_MASK_2)) << ROW_2_SHIFT);
+        d2 = (d2 >> 18);
+    }
+    
+    /**
      * Sets the board to the neighbors of all bits that are currently set.
      */
     public void toNeighbors()
@@ -775,7 +863,7 @@ public class BitBoard
         {
             for (int col = 0; col < 9; col++)
             {
-                str += getValue((row * 9) + col) ? '1' : '.';
+                str += getValue((row * 9) + col) ? "X " : ". ";
             }
             str += System.lineSeparator();
         }

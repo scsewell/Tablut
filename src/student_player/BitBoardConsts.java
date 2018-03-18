@@ -174,7 +174,7 @@ public class BitBoardConsts
      * @param result
      *            The bitboard to put the legal moves into.
      */
-    public static void getLegalMovesHorizontal(int square, boolean isKing, BitBoard occupied, BitBoard occupiedRefl,
+    public static void getLegalMoves(int square, boolean isKing, BitBoard occupied, BitBoard occupiedRefl,
             BitBoard result)
     {
         int row = square / 9;
