@@ -173,7 +173,7 @@ public class StudentPlayer extends TablutPlayer
             m_noPvMoveCount = 0;
             
             // search for the best move
-            int result = Negamax(currentState, depth, -Short.MAX_VALUE, Short.MAX_VALUE);
+            int result = negaMax(currentState, depth, -Short.MAX_VALUE, Short.MAX_VALUE);
             nodesVisited = m_nodeCount;
             
             // unpack the best move and use it if this iteration was completed
@@ -266,7 +266,7 @@ public class StudentPlayer extends TablutPlayer
      * @return The value of this node in the most significant 16 bits and the best
      *         move in the least signinicant 16 bits.
      */
-    private int Negamax(StateExplorer state, int depth, int a, int b)
+    private int negaMax(StateExplorer state, int depth, int a, int b)
     {
         m_nodeCount++;
         
@@ -336,7 +336,7 @@ public class StudentPlayer extends TablutPlayer
                 // apply the move to the board
                 state.makeMove(move);
                 // evaluate this move
-                int result = -Negamax(state, interalDepth, -b, -a);
+                int result = -negaMax(state, interalDepth, -b, -a);
                 // undo the move
                 state.unmakeMove();
                 // check if the move is the best found so far
@@ -375,8 +375,7 @@ public class StudentPlayer extends TablutPlayer
             }
         }
         
-        // iterate over all legal moves to find the best heuristic value among the child
-        // nodes
+        // iterate over all legal moves to find the best value among the child nodes
         int bestMove = 0;
         int bestValue = -Short.MAX_VALUE;
         for (int i = 0; i < legalMoves.length; i++)
@@ -393,21 +392,28 @@ public class StudentPlayer extends TablutPlayer
             int move = legalMoves[i];
             // apply the move to the board
             state.makeMove(move);
-            // evaluate this move
-            int result = -Negamax(state, i == 0 ? depth - 1 : depth / 2, -b, -a);
+            
+            // search to a reduced depth if we don't think the move will be all that good
+            int result = -negaMax(state, (i == 0 || depth < 3) ? depth - 1 : depth - 3, -b, -a);
+            int score = result >> 16;
+            // if the move was searched to a reduced depth but looked promising fully explore it
+            if (score > a && i > 1)
+            {
+                result = -negaMax(state, depth - 1, -b, -a);
+                score = result >> 16;
+            }
+            
             // undo the move
             state.unmakeMove();
             
-            // check if the move is the best found so far
-            int value = result >> 16;
-            if (bestValue < value)
+            // check if the move is the best found so far and update the lowe bound
+            if (bestValue < score)
             {
-                bestValue = value;
+                bestValue = score;
                 bestMove = move;
+                a = score;
             }
             
-            // update the lower bound
-            a = Math.max(a, value);
             // alpha-beta prune
             if (a >= b)
             {

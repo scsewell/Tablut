@@ -90,7 +90,7 @@ public class Evaluator
     /**
      * The value added to the king per move able to be made.
      */
-    public static final int       KING_MOVE_VALUE                    = 15;
+    public static final int       KING_MOVE_VALUE                    = 25;
     
     /**
      * The weighting of the square values in the evaluation.

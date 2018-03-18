@@ -201,11 +201,11 @@ public class StateExplorer
         }
     }
     
-    private BitBoard m_opponentPieces    = new BitBoard();
-    private BitBoard m_assistingPieces   = new BitBoard();
-    private BitBoard m_capturedPieces    = new BitBoard();
-    private BitBoard m_kingCenterCapture = new BitBoard();
-    private BitBoard m_escapedKing       = new BitBoard();
+    private BitBoard m_opponentPieces  = new BitBoard();
+    private BitBoard m_assistingPieces = new BitBoard();
+    private BitBoard m_capturedPieces  = new BitBoard();
+    private BitBoard m_kingNeighbors   = new BitBoard();
+    private BitBoard m_escapedKing     = new BitBoard();
     
     /**
      * Applies a move to the state.
@@ -262,32 +262,20 @@ public class StateExplorer
             m_capturedPieces.and(BitBoardConsts.oneCrosses[to]);
             
             // enforce the special rules for capturing the king
-            m_kingCenterCapture.clear();
-            m_kingCenterCapture.set(m_currentState.kingSquare);
-            m_kingCenterCapture.and(m_capturedPieces);
-            m_kingCenterCapture.and(BitBoardConsts.king4Surround);
-            
-            // is the king threatened while on the safer center squares?
-            if (!m_kingCenterCapture.isEmpty())
+            if (m_capturedPieces.getValue(m_currentState.kingSquare))
             {
-                if (!m_kingCenterCapture.equals(BitBoardConsts.center))
+                m_kingNeighbors.clear();
+                m_kingNeighbors.set(m_currentState.kingSquare);
+                m_kingNeighbors.toNeighbors();
+                
+                int blackSurround = BitBoard.andCount(m_kingNeighbors, m_currentState.black);
+                int centerSurround = BitBoard.andCount(m_kingNeighbors, BitBoardConsts.center);
+                boolean atCenter = BitBoardConsts.king4Surround.getValue(m_currentState.kingSquare);
+                
+                // the king is safe on the center 5 squared unless surrounded
+                if (atCenter && blackSurround + centerSurround < 4)
                 {
-                    // the king is not on the center tile of the safer squares, and thus can't be
-                    // captured, so remove it from the captured pieces set
                     m_capturedPieces.clear(m_currentState.kingSquare);
-                }
-                else
-                {
-                    // the king is on the center tile, so if it is surrounded by four enemies let it
-                    // be captured, otherwise remove it from the captured pieces set
-                    m_kingCenterCapture.or(m_currentState.black);
-                    m_kingCenterCapture.and(BitBoardConsts.king4Surround);
-                    
-                    if (!m_kingCenterCapture.equals(BitBoardConsts.king4Surround))
-                    {
-                        // king should not be captured
-                        m_capturedPieces.clear(m_currentState.kingSquare);
-                    }
                 }
             }
             
