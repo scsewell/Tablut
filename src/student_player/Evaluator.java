@@ -46,7 +46,7 @@ public class Evaluator
      */
     private static final BitBoard REGION_CORNER_ADJACENT;
     private static final int      REGION_CORNER_ADJACENT_VALUE_BLACK = -50;
-    private static final int      REGION_CORNER_ADJACENT_VALUE_WHITE = -50;
+    private static final int      REGION_CORNER_ADJACENT_VALUE_WHITE = -75;
     private static final int      REGION_CORNER_ADJACENT_VALUE_KING  = -50;
     
     /**

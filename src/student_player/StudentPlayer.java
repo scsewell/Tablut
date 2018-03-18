@@ -185,8 +185,8 @@ public class StudentPlayer extends TablutPlayer
                 {
                     bestMove = move;
                 }
-                Log.info(String.format("depth: %s  move: %s  visits: %s  first cut %s  pv move %s", depth,
-                        BoardUtils.getMoveString(bestMove), m_nodeCount,
+                Log.info(String.format("depth: %s  move: %s  evaluation: %s  visits: %s  first cut %s  pv move %s",
+                        depth, BoardUtils.getMoveString(bestMove), result >> 16, m_nodeCount,
                         (m_firstCutCount / (float)(m_firstCutCount + m_notFirstCutCount)),
                         (m_pvMoveCount / (float)(m_pvMoveCount + m_noPvMoveCount))));
             }
@@ -263,8 +263,8 @@ public class StudentPlayer extends TablutPlayer
      *            The alpha value.
      * @param b
      *            The beta value.
-     * @return The value of this node in the upper 16 bits and the best move in the
-     *         lower 16 bits.
+     * @return The value of this node in the most significant 16 bits and the best
+     *         move in the least signinicant 16 bits.
      */
     private int Negamax(StateExplorer state, int depth, int a, int b)
     {
@@ -328,6 +328,10 @@ public class StudentPlayer extends TablutPlayer
             int interalDepth = (depth > 4) ? depth / 2 : depth - 2;
             for (int i = 0; i < legalMoves.length; i++)
             {
+                if (System.nanoTime() > m_stopTime)
+                {
+                    break;
+                }
                 int move = legalMoves[i];
                 // apply the move to the board
                 state.makeMove(move);
