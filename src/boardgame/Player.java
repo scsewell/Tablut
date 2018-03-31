@@ -24,16 +24,14 @@ import boardgame.BoardState;
  *
  * See the BohnenspielRandomPlayer class for an example implementation.
  */
-public abstract class Player
-{
+public abstract class Player {
     private String name;
-    protected int  player_id;
+    protected int player_id;
 
     /**
      * Constructor: the name is used to identify the player to the server.
      */
-    public Player(String name)
-    {
+    public Player(String name) {
         setName(name);
     }
 
@@ -43,8 +41,7 @@ public abstract class Player
      * @param msg
      *            The START message received from the server.
      */
-    final public void gameStarted(String msg)
-    {
+    final public void gameStarted(String msg) {
         System.out.println("Game started: " + msg);
     }
 
@@ -58,8 +55,7 @@ public abstract class Player
      * @param move
      *            The move received from the server.
      */
-    public void movePlayed(BoardState board_state, Move move)
-    {
+    public void movePlayed(BoardState board_state, Move move) {
     }
 
     /**
@@ -82,8 +78,7 @@ public abstract class Player
      *            The "GAMEOVER" message or an error message if there was an
      *            unexpected disconnection.
      */
-    public void gameOver(String msg, BoardState bs)
-    {
+    public void gameOver(String msg, BoardState bs) {
     }
 
     /**
@@ -95,23 +90,19 @@ public abstract class Player
     abstract public Board createBoard();
 
     /* Package-level accessors for client software */
-    public void setColor(int c)
-    {
+    public void setColor(int c) {
         player_id = c;
     }
 
-    final public void setName(String s)
-    {
+    final public void setName(String s) {
         name = s.length() <= 0 ? "<none>" : s;
     }
 
-    final public int getColor()
-    {
+    final public int getColor() {
         return player_id;
     }
 
-    final public String getName()
-    {
+    final public String getName() {
         return name;
     }
 } // End class

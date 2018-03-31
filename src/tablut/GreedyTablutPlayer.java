@@ -8,23 +8,19 @@ import boardgame.Player;
 import coordinates.Coord;
 import coordinates.Coordinates;
 
-public class GreedyTablutPlayer extends TablutPlayer
-{
-    private Random rand = new Random();
+public class GreedyTablutPlayer extends TablutPlayer {
+    private Random rand = new Random(1848);
 
-    public GreedyTablutPlayer()
-    {
+    public GreedyTablutPlayer() {
         super("GreedyPlayer");
     }
 
-    public GreedyTablutPlayer(String name)
-    {
+    public GreedyTablutPlayer(String name) {
         super(name);
     }
 
     @Override
-    public Move chooseMove(TablutBoardState bs)
-    {
+    public Move chooseMove(TablutBoardState bs) {
         List<TablutMove> options = bs.getAllLegalMoves();
 
         // Set an initial move as some random one.
@@ -36,11 +32,10 @@ public class GreedyTablutPlayer extends TablutPlayer
         boolean moveCaptures = false;
 
         // Iterate over move options and evaluate them.
-        for (TablutMove move : options)
-        {
+        for (TablutMove move : options) {
             // To evaluate a move, clone the boardState so that we can do modifications on
             // it.
-            TablutBoardState cloneBS = (TablutBoardState)bs.clone();
+            TablutBoardState cloneBS = (TablutBoardState) bs.clone();
 
             // Process that move, as if we actually made it happen.
             cloneBS.processMove(move);
@@ -49,8 +44,7 @@ public class GreedyTablutPlayer extends TablutPlayer
             int newNumberOfOpponentPieces = cloneBS.getNumberPlayerPieces(opponent);
 
             // If this move caused some capturing to happen, then do it! Greedy!
-            if (newNumberOfOpponentPieces < minNumberOfOpponentPieces)
-            {
+            if (newNumberOfOpponentPieces < minNumberOfOpponentPieces) {
                 bestMove = move;
                 minNumberOfOpponentPieces = newNumberOfOpponentPieces;
                 moveCaptures = true;
@@ -62,8 +56,7 @@ public class GreedyTablutPlayer extends TablutPlayer
              * white can move to a corner, since if either of these things happen then a
              * winner will be set.
              */
-            if (cloneBS.getWinner() == player_id)
-            {
+            if (cloneBS.getWinner() == player_id) {
                 bestMove = move;
                 moveCaptures = true;
                 break;
@@ -79,24 +72,21 @@ public class GreedyTablutPlayer extends TablutPlayer
         // If we are SWEDES we also want to check if we can get closer to the closest
         // corner. Greedy!
         // But let's say we'll only do this if we CANNOT do a capture.
-        if (player_id == TablutBoardState.SWEDE && !moveCaptures)
-        {
+        if (player_id == TablutBoardState.SWEDE && !moveCaptures) {
             Coord kingPos = bs.getKingPosition();
 
             // Don't do a move if it wouldn't get us closer than our current position.
             int minDistance = Coordinates.distanceToClosestCorner(kingPos);
 
             // Iterate over moves from a specific position, the king's position!
-            for (TablutMove move : bs.getLegalMovesForPosition(kingPos))
-            {
+            for (TablutMove move : bs.getLegalMovesForPosition(kingPos)) {
                 /*
                  * Here it is not necessary to actually process the move on a copied boardState.
                  * Note that it is more efficient NOT to copy the boardState. Consider this
                  * during implementation...
                  */
                 int moveDistance = Coordinates.distanceToClosestCorner(move.getEndPosition());
-                if (moveDistance < minDistance)
-                {
+                if (moveDistance < minDistance) {
                     minDistance = moveDistance;
                     bestMove = move;
                 }
@@ -106,8 +96,7 @@ public class GreedyTablutPlayer extends TablutPlayer
     }
 
     // For Debugging purposes only.
-    public static void main(String[] args)
-    {
+    public static void main(String[] args) {
         TablutBoardState b = new TablutBoardState();
         Player swede = new GreedyTablutPlayer("GreedySwede");
         swede.setColor(TablutBoardState.SWEDE);
@@ -117,16 +106,15 @@ public class GreedyTablutPlayer extends TablutPlayer
         //
         Player muscovite = new GreedyTablutPlayer("GreedyMuscovite");
         muscovite.setColor(TablutBoardState.MUSCOVITE);
-        ((GreedyTablutPlayer)muscovite).rand = new Random(4);
+        ((GreedyTablutPlayer) muscovite).rand = new Random(4);
 
         // Player muscovite = new RandomTablutPlayer("RandomMuscovite");
         // muscovite.setColor(TablutBoardState.MUSCOVITE);
 
         Player player = muscovite;
-        while (!b.gameOver())
-        {
+        while (!b.gameOver()) {
             Move m = player.chooseMove(b);
-            b.processMove((TablutMove)m);
+            b.processMove((TablutMove) m);
             player = (player == muscovite) ? swede : muscovite;
             System.out.println("\nMOVE PLAYED: " + m.toPrettyString());
             b.printBoard();

@@ -117,7 +117,7 @@ public class StateExplorer
         }
         
         // increment turn with every move rather then every other move
-        m_turnNumber = (2 * (state.getTurnNumber() - 1)) + state.getTurnPlayer();
+        m_turnNumber = (2 * state.getTurnNumber()) + state.getTurnPlayer();
         m_startTurn = m_turnNumber;
         
         // initialize the state stack with enough states to play out any remaining moves
