@@ -15,13 +15,13 @@ public class StudentPlayer extends TablutPlayer
     /**
      * The time allowed to think during the first turn in nanoseconds.
      */
-    private static final long  START_TURN_TIMEOUT   = (long)(9.98 * 1000000000);
+    private static final long  START_TURN_TIMEOUT   = (long)(9.95 * 1000000000);
     
     /**
      * The time allowed to think during turns following the first turn in
      * nanoseconds.
      */
-    private static final long  TURN_TIMEOUT         = (long)(1.98 * 1000000000);
+    private static final long  TURN_TIMEOUT         = (long)(1.95 * 1000000000);
     
     private TranspositionTable m_transpositionTable = new TranspositionTable(340);
     private long               m_stopTime;
@@ -36,39 +36,11 @@ public class StudentPlayer extends TablutPlayer
     }
     
     /**
-     * Contains a few tests.
+     * Contains a small test.
      */
     public static void main(String[] args)
     {
         BitBoard black = new BitBoard();
-        BitBoard white = new BitBoard();
-        StateExplorer s;
-        
-        // black.set(0, 1);
-        // black.set(0, 3);
-        // black.set(0, 4);
-        // black.set(0, 5);
-        // black.set(1, 4);
-        // black.set(2, 3);
-        // black.set(3, 8);
-        // black.set(4, 7);
-        // black.set(4, 8);
-        // black.set(5, 0);
-        // black.set(5, 8);
-        // black.set(7, 4);
-        // black.set(8, 3);
-        // black.set(8, 4);
-        // black.set(8, 5);
-        //
-        // white.set(3, 4);
-        // white.set(4, 5);
-        // white.set(4, 6);
-        // white.set(5, 4);
-        // white.set(6, 4);
-        //
-        // s = new StateExplorer(1, new State(black, white, 4));
-        
-        black = new BitBoard();
         black.set(0, 3);
         black.set(0, 4);
         black.set(0, 5);
@@ -83,11 +55,9 @@ public class StudentPlayer extends TablutPlayer
         black.set(7, 4);
         black.set(8, 2);
         black.set(8, 4);
+        black.set(8, 5);
         
-        // black.set(8, 5);
-        black.set(5, 5);
-        
-        white = new BitBoard();
+        BitBoard white = new BitBoard();
         white.set(2, 4);
         white.set(4, 2);
         white.set(4, 3);
@@ -96,9 +66,7 @@ public class StudentPlayer extends TablutPlayer
         white.set(5, 6);
         white.set(6, 2);
         
-        s = new StateExplorer(2, new State(black, white, 40));
-        
-        // s = new StateExplorer(new TablutBoardState());
+        StateExplorer s = new StateExplorer(2, new State(black, white, 40));
         
         StudentPlayer player = new StudentPlayer();
         int move0 = player.getBestMove(s, TURN_TIMEOUT);
@@ -278,7 +246,7 @@ public class StudentPlayer extends TablutPlayer
         {
             m_noPvMoveCount++;
             int bestValue = -Short.MAX_VALUE;
-            int interalDepth = (depth > 4) ? depth / 2 : depth - 1;
+            int interalDepth = (depth > 4) ? depth / 2 : depth - 2;
             for (int i = 0; i < legalMoves.length; i++)
             {
                 if (System.nanoTime() > m_stopTime)

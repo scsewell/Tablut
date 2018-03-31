@@ -83,7 +83,7 @@ public class Log
     }
 
     /**
-     * Gets the logger instance.
+     * Gets the logger instance or creates one if non exisis.
      */
     private static Log instance()
     {
@@ -113,6 +113,7 @@ public class Log
      */
     public static void info(String message)
     {
+        // logging is disabled for competition
         instance().m_logger.info(message);
     }
 
