@@ -1,5 +1,7 @@
 package student_player;
 
+import java.util.Arrays;
+
 import boardgame.Move;
 import tablut.TablutBoardState;
 import tablut.TablutMove;
@@ -10,7 +12,7 @@ import tablut.TablutPlayer;
  * 
  * @author Scott Sewell, ID: 260617022
  */
-public class StudentPlayer extends TablutPlayer
+public class StudentPlayerAlt extends TablutPlayer
 {
     /**
      * The time allowed to think during the first turn in nanoseconds.
@@ -29,9 +31,9 @@ public class StudentPlayer extends TablutPlayer
     /**
      * Associate this player implementation with my student ID.
      */
-    public StudentPlayer()
+    public StudentPlayerAlt()
     {
-        super("260617022");
+        super("AltPlayer");
     }
     
     /**
@@ -96,7 +98,7 @@ public class StudentPlayer extends TablutPlayer
             
             // search for the best move
             int result = negaMax(currentState, depth, -Short.MAX_VALUE, Short.MAX_VALUE);
-            nodesVisited = m_nodeCount;
+            nodesVisited += m_nodeCount;
             
             // unpack the best move and use it if this iteration was completed
             if (System.nanoTime() < m_stopTime)
@@ -158,9 +160,9 @@ public class StudentPlayer extends TablutPlayer
         // if the entry is valid use the stored information
         if (entry != TranspositionTable.NO_VALUE)
         {
-            int score       = TranspositionTable.ExtractScore(entry);
-            int entryDepth  = TranspositionTable.ExtractDepth(entry);
-            tableMove       = TranspositionTable.ExtractMove(entry);
+            int score = TranspositionTable.ExtractScore(entry);
+            tableMove = TranspositionTable.ExtractMove(entry);
+            int entryDepth = TranspositionTable.ExtractDepth(entry);
             
             // this entry stores more complete search information to a greater or equal
             // depth, so we can just use the stored values
@@ -202,8 +204,8 @@ public class StudentPlayer extends TablutPlayer
         if (tableMove == Integer.MIN_VALUE && depth > 4)
         {
             m_noPvMoveCount++;
-            int bestValue = -Short.MAX_VALUE;
             int interalDepth = depth / 2;
+            
             for (int i = 0; i < legalMoves.length; i++)
             {
                 if (System.nanoTime() > m_stopTime)
@@ -217,29 +219,26 @@ public class StudentPlayer extends TablutPlayer
                 int result = -negaMax(state, interalDepth, -b, -a);
                 // undo the move
                 state.unmakeMove();
-                // check if the move is the best found so far
-                int value = result >> 16;
-                if (bestValue < value)
-                {
-                    bestValue = value;
-                    tableMove = move;
-                }
+                // store the value of the move
+                legalMoves[i] |= result & 0xFFFF0000;
             }
+            Arrays.sort(legalMoves);
         }
         else
         {
             m_pvMoveCount++;
         }
         
-        boolean hasBestMove = false;
+        int firstMoveIndex = legalMoves.length - 1;
         
         // put the expected best move first in the list of moves to get more prunes
         if (tableMove != Integer.MIN_VALUE && legalMoves.length > 0)
         {
             // find where the expected move is in the move list and move it to the front
-            int prev = legalMoves[0];
-            legalMoves[0] = tableMove;
-            for (int i = 1; i < legalMoves.length; i++)
+            int prev = legalMoves[firstMoveIndex];
+            legalMoves[firstMoveIndex] = tableMove;
+            
+            for (int i = firstMoveIndex - 1; i >= 0; i--)
             {
                 int curr = legalMoves[i];
                 legalMoves[i] = prev;
@@ -253,13 +252,14 @@ public class StudentPlayer extends TablutPlayer
                     prev = curr;
                 }
             }
-            hasBestMove = true;
         }
+        
+        boolean pruned = false;
         
         // iterate over all legal moves to find the best value among the child nodes
         int bestMove = 0;
         int bestValue = -Short.MAX_VALUE;
-        for (int i = 0; i < legalMoves.length; i++)
+        for (int i = firstMoveIndex; i >= 0; i--)
         {
             // if time is up we need to stop searching, and we shouldn't use incomplete
             // search results
@@ -270,16 +270,17 @@ public class StudentPlayer extends TablutPlayer
                 return (bestValue << 16) | bestMove;
             }
             
-            int move = legalMoves[i];
+            // get the current move
+            int move = legalMoves[i] & 0x0000FFFF;
             // apply the move to the board
             state.makeMove(move);
-            
             // search to a reduced depth if we don't think the move will be all that good
-            int result = -negaMax(state, !hasBestMove || i == 0 || depth < 3 ? depth - 1 : depth - 3, -b, -a);
+            int result = -negaMax(state, (i == firstMoveIndex || depth < 3) ? depth - 1 : depth - 3, -b, -a);
             int score = result >> 16;
             
-            // if a reduced searched looked promising fully explore it
-            if (hasBestMove && i > 1 && score > a)
+            // if the move was searched to a reduced depth but looked promising fully
+            // explore it
+            if (score > a && i < firstMoveIndex)
             {
                 result = -negaMax(state, depth - 1, -b, -a);
                 score = result >> 16;
@@ -299,16 +300,18 @@ public class StudentPlayer extends TablutPlayer
             // alpha-beta prune
             if (a >= b)
             {
-                if (i == 0)
-                {
-                    m_firstCutCount++;
-                }
-                else
-                {
-                    m_notFirstCutCount++;
-                }
+                pruned = i == firstMoveIndex;
                 break;
             }
+        }
+        
+        if (pruned)
+        {
+            m_firstCutCount++;
+        }
+        else
+        {
+            m_notFirstCutCount++;
         }
         
         // update the transposition table with the node value
@@ -374,7 +377,7 @@ public class StudentPlayer extends TablutPlayer
         
         StateExplorer s = new StateExplorer(2, new State(black, white, 40));
         
-        StudentPlayer player = new StudentPlayer();
+        StudentPlayerAlt player = new StudentPlayerAlt();
         s.makeMove(player.getBestMove(s, TURN_TIMEOUT));
     }
     
