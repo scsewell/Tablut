@@ -5,27 +5,8 @@ package student_player;
  * 
  * @author Scott Sewell, ID: 260617022
  */
-public class BoardUtils
+public class Utils
 {
-    /**
-     * The board square transformation mapping.
-     */
-    public static final int[][]  TRANSFORMED_INDICIES = new int[8][81];
-    
-    /*
-     * Creates all of the tile instances.
-     */
-    static
-    {
-        for (int transformation = 0; transformation < 8; transformation++)
-        {
-            for (int square = 0; square < 81; square++)
-            {
-                TRANSFORMED_INDICIES[transformation][square] = getTransformed(transformation, square);
-            }
-        }
-    }
-    
     /**
      * Gets a string represeting a move.
      * 
@@ -49,7 +30,7 @@ public class BoardUtils
      *            The index of the board square to transform.
      * @return The transformed board square index.
      */
-    private static int getTransformed(int trasformCode, int index)
+    public static int getTransformed(int trasformCode, int index)
     {
         int row = index / 9;
         int col = index % 9;

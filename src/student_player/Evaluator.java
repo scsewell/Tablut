@@ -85,7 +85,7 @@ public class Evaluator
     /**
      * The value added to a peice per move able to be made.
      */
-    public static final int       MOVE_VALUE                         = 7;
+    public static final int       MOVE_VALUE                         = 5;
     
     /*
      * The value of the each square closer a black piece is to the king.
@@ -227,16 +227,16 @@ public class Evaluator
         
         // get the legal moves for each black piece
         int blackSquareValues = 0;
-        int blackMovableSquares = 0;
+//        int blackMovableSquares = 0;
         int blackKingDistance = 0;
         for (int i = 0; i < state.blackCount; i++)
         {
             int square = state.blackPieces[i];
             blackSquareValues += SQUARE_VALUES[0][square];
-            BitBoard legalMoves = m_blackLegalMoves[i];
-            BitBoardConsts.getLegalMoves(square, false, m_pieces, m_piecesReflected, legalMoves);
-            m_allBlackLegalMoves.or(legalMoves);
-            blackMovableSquares += legalMoves.cardinality();
+//            BitBoard legalMoves = m_blackLegalMoves[i];
+//            BitBoardConsts.getLegalMoves(square, false, m_pieces, m_piecesReflected, legalMoves);
+//            m_allBlackLegalMoves.or(legalMoves);
+//            blackMovableSquares += legalMoves.cardinality();
             blackKingDistance += Math.abs(kingCol - (square % 9)) + Math.abs(kingRow - (square / 9));
         }
         if (state.blackCount > 0)
@@ -267,15 +267,15 @@ public class Evaluator
         int valueForBlack = 0;
         
         // get the number of threating moves each player can make
-        int blackThreats = countThreats(state.white, state.black, m_allBlackLegalMoves);
-        int whiteThreats = countThreats(state.black, state.white, m_allWhiteLegalMoves);
-        valueForBlack += (blackThreats - whiteThreats) * THREAT_VALUE;
+//        int blackThreats = countThreats(state.white, state.black, m_allBlackLegalMoves);
+//        int whiteThreats = countThreats(state.black, state.white, m_allWhiteLegalMoves);
+//        valueForBlack += (blackThreats - whiteThreats) * THREAT_VALUE;
         
         // black does better when it's pieces are near to the king
         valueForBlack -= blackKingDistance * KING_DISTANCE_VALUE;
         
         // the ability to make more moves is valuable, especially for the king
-        valueForBlack += (blackMovableSquares * MOVE_VALUE);
+//        valueForBlack += (blackMovableSquares * MOVE_VALUE);
         valueForBlack -= (whiteMovableSquares * MOVE_VALUE) + (kingMovableSquares * KING_MOVE_VALUE);
         
         // get the value for the pieces based on their current squares

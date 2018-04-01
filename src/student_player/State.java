@@ -1,5 +1,9 @@
 package student_player;
 
+import boardgame.Board;
+import coordinates.Coordinates;
+import tablut.TablutBoardState;
+
 /**
  * Stores board state information.
  * 
@@ -63,6 +67,32 @@ public class State
      */
     public State()
     {
+    }
+
+    /**
+     * Constructs a new board state from the board state.
+     */
+    public State(TablutBoardState state)
+    {
+        for (int i = 0; i < 81; i++)
+        {
+            int row = i / 9;
+            int col = i % 9;
+            switch (state.getPieceAt(Coordinates.get(col, row)))
+            {
+                case BLACK:
+                    black.set(col, row);
+                    break;
+                case WHITE:
+                    white.set(col, row);
+                    break;
+                case KING:
+                    kingSquare = i;
+                    break;
+                default:
+                    break;
+            }
+        }
     }
     
     /**
@@ -172,5 +202,82 @@ public class State
             }
         }
         return pieceCount;
+    }
+    
+    /*
+     * Prints the State in a nice format. Indicates the last moved piece by placing
+     * brackets around it and marks where it moved from with an 'x'.
+     */
+    @Override
+    public String toString()
+    {
+        // print the number of pieces for each team
+        String str = System.lineSeparator();
+        str += "Black Pieces: " + black.cardinality() + " ";
+        str += "White Pieces: " + (white.cardinality() + (kingSquare == State.NOT_ON_BOARD ? 0 : 1)) + " ";
+        
+        // print the board nicely formatted
+        int from = (int)(move & 0x7F);
+        int to = (int)((move >> 7) & 0x7F);
+        
+        str += System.lineSeparator();
+        str += "    0 1 2 3 4 5 6 7 8    " + System.lineSeparator();
+        str += "  +-------------------+  " + System.lineSeparator();
+        for (int row = 0; row < 9; row++)
+        {
+            str += row + " | ";
+            for (int col = 0; col < 9; col++)
+            {
+                int square = (row * 9) + col;
+                boolean isFrom = (from == square);
+                boolean isTo = (to == square);
+                
+                if (black.getValue(col, row))
+                {
+                    str = FormatPiece(str, "b", isTo);
+                }
+                else if (white.getValue(col, row))
+                {
+                    str = FormatPiece(str, "w", isTo);
+                }
+                else if (kingSquare == square)
+                {
+                    str = FormatPiece(str, "K", isTo);
+                }
+                else
+                {
+                    str += (isFrom && move > 0) ? "x " : ". ";
+                }
+            }
+            str += "| " + row + System.lineSeparator();
+        }
+        str += "  +-------------------+  " + System.lineSeparator();
+        str += "    0 1 2 3 4 5 6 7 8    " + System.lineSeparator();
+        return str;
+    }
+    
+    /**
+     * Adds a piece to the board string.
+     * 
+     * @param current
+     *            The current board string.
+     * @param piece
+     *            The character to use for the piece on the board.
+     * @param wasMoved
+     *            Indicates if the piece moved last turn.
+     * @return The new board string.
+     */
+    private String FormatPiece(String current, String piece, boolean wasMoved)
+    {
+        if (wasMoved && move > 0)
+        {
+            current = current.substring(0, current.length() - 1);
+            current += "(" + piece + ")";
+        }
+        else
+        {
+            current += piece + " ";
+        }
+        return current;
     }
 }

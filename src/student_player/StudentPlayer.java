@@ -108,7 +108,7 @@ public class StudentPlayer extends TablutPlayer
                     bestMove = move;
                 }
                 Log.info(String.format("depth: %s  move: %s  evaluation: %s  visits: %s  first cut %s  pv move %s",
-                        depth, BoardUtils.getMoveString(bestMove), result >> 16, m_nodeCount,
+                        depth, Utils.getMoveString(bestMove), result >> 16, m_nodeCount,
                         (m_firstCutCount / (float)(m_firstCutCount + m_notFirstCutCount)),
                         (m_pvMoveCount / (float)(m_pvMoveCount + m_noPvMoveCount))));
             }
@@ -152,7 +152,7 @@ public class StudentPlayer extends TablutPlayer
         
         // check if we have visited this state before and know some information about it
         long hash = state.getHash();
-        int entry = m_transpositionTable.get(hash, depth, state.getTurnNumber());
+        long entry = m_transpositionTable.get(hash, depth, state.getTurnNumber());
         int tableMove = Integer.MIN_VALUE;
         
         // if the entry is valid use the stored information

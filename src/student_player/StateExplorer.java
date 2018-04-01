@@ -93,29 +93,6 @@ public class StateExplorer
      */
     public StateExplorer(TablutBoardState state)
     {
-        State initialState = new State();
-        
-        // copy all board squares
-        for (int i = 0; i < 81; i++)
-        {
-            int row = i / 9;
-            int col = i % 9;
-            switch (state.getPieceAt(Coordinates.get(col, row)))
-            {
-                case BLACK:
-                    initialState.black.set(i);
-                    break;
-                case WHITE:
-                    initialState.white.set(i);
-                    break;
-                case KING:
-                    initialState.kingSquare = i;
-                    break;
-                default:
-                    break;
-            }
-        }
-        
         // increment turn with every move rather then every other move
         m_turnNumber = (2 * state.getTurnNumber()) + state.getTurnPlayer();
         m_startTurn = m_turnNumber;
@@ -123,7 +100,7 @@ public class StateExplorer
         // initialize the state stack with enough states to play out any remaining moves
         m_stack = new State[(1 + MAX_MOVES) - m_startTurn];
         
-        initialize(initialState);
+        initialize(new State(state));
     }
     
     /**
@@ -201,11 +178,16 @@ public class StateExplorer
         }
     }
     
-    private BitBoard m_opponentPieces  = new BitBoard();
-    private BitBoard m_assistingPieces = new BitBoard();
-    private BitBoard m_capturedPieces  = new BitBoard();
-    private BitBoard m_kingNeighbors   = new BitBoard();
-    private BitBoard m_escapedKing     = new BitBoard();
+    private int[]    m_legalMoves           = new int[183];
+    private int      m_legalMoveCount;
+    private BitBoard m_pieces               = new BitBoard();
+    private BitBoard m_piecesReflected      = new BitBoard();
+    private BitBoard m_kingReachableCorners = new BitBoard();
+    private BitBoard m_opponentPieces       = new BitBoard();
+    private BitBoard m_assistingPieces      = new BitBoard();
+    private BitBoard m_capturedPieces       = new BitBoard();
+    private BitBoard m_kingNeighbors        = new BitBoard();
+    private BitBoard m_escapedKing          = new BitBoard();
     
     /**
      * Applies a move to the state.
@@ -219,10 +201,9 @@ public class StateExplorer
     {
         State nextState = m_stack[(m_turnNumber - m_startTurn) + 1];
         nextState.copy(m_currentState);
-        m_currentState = nextState;
-        m_currentState.move = move;
         
-        m_currentState.hash ^= PLAYER_HASH;
+        nextState.move = move & 0x3FFF;
+        nextState.hash ^= PLAYER_HASH;
         
         // extract the board squares moved from and to from the move integer.
         int from = move & 0x7F;
@@ -240,21 +221,24 @@ public class StateExplorer
             opponent = WHITE;
             
             // move the piece
-            m_currentState.black.clear(fromCol, fromRow);
-            m_currentState.black.set(toCol, toRow);
+            nextState.black.clear(fromCol, fromRow);
+            nextState.black.set(toCol, toRow);
             
             // incrementally update the board hash
-            m_currentState.hash ^= HASH_KEYS[0][from];
-            m_currentState.hash ^= HASH_KEYS[0][to];
+            nextState.hash ^= HASH_KEYS[0][from];
+            nextState.hash ^= HASH_KEYS[0][to];
             
             // find pieces that can help the moved piece make a capture
-            m_assistingPieces.copy(m_currentState.black);
+            m_assistingPieces.copy(nextState.black);
             m_assistingPieces.or(BitBoardConsts.onlyKingAllowed);
             m_assistingPieces.and(BitBoardConsts.twoCrosses[to]);
             
             // find captured pieces
-            m_opponentPieces.copy(m_currentState.white);
-            m_opponentPieces.set(m_currentState.kingSquare);
+            int kingRow = nextState.kingSquare / 9;
+            int kingCol = nextState.kingSquare % 9;
+            
+            m_opponentPieces.copy(nextState.white);
+            m_opponentPieces.set(kingCol, kingRow);
             
             m_capturedPieces.copy(m_assistingPieces);
             m_capturedPieces.toNeighbors();
@@ -262,33 +246,32 @@ public class StateExplorer
             m_capturedPieces.and(BitBoardConsts.oneCrosses[to]);
             
             // enforce the special rules for capturing the king
-            if (m_capturedPieces.getValue(m_currentState.kingSquare))
+            if (m_capturedPieces.getValue(kingCol, kingRow))
             {
                 m_kingNeighbors.clear();
-                m_kingNeighbors.set(m_currentState.kingSquare);
+                m_kingNeighbors.set(kingCol, kingRow);
                 m_kingNeighbors.toNeighbors();
                 
-                int blackSurround = BitBoard.andCount(m_kingNeighbors, m_currentState.black);
+                int blackSurround = BitBoard.andCount(m_kingNeighbors, nextState.black);
                 int centerSurround = BitBoard.andCount(m_kingNeighbors, BitBoardConsts.center);
-                boolean atCenter = BitBoardConsts.king4Surround.getValue(m_currentState.kingSquare);
+                boolean atCenter = BitBoardConsts.king4Surround.getValue(kingCol, kingRow);
                 
-                // the king is safe on the center 5 squared unless surrounded
+                // the king is safe on the center cross squares unless surrounded
                 if (atCenter && blackSurround + centerSurround < 4)
                 {
-                    m_capturedPieces.clear(m_currentState.kingSquare);
+                    m_capturedPieces.clear(kingCol, kingRow);
                 }
             }
             
             // remove captured pieces
-            m_currentState.white.andNot(m_capturedPieces);
+            nextState.white.andNot(m_capturedPieces);
             
             // if the king was captured, black wins
-            if (m_capturedPieces.getValue(m_currentState.kingSquare))
+            if (m_capturedPieces.getValue(kingCol, kingRow))
             {
-                m_capturedPieces.clear(m_currentState.kingSquare);
-                m_currentState.hash ^= HASH_KEYS[2][m_currentState.kingSquare];
-                
-                m_currentState.kingSquare = State.NOT_ON_BOARD;
+                m_capturedPieces.clear(kingCol, kingRow);
+                nextState.hash ^= HASH_KEYS[2][nextState.kingSquare];
+                nextState.kingSquare = State.NOT_ON_BOARD;
                 m_winner = BLACK;
             }
         }
@@ -296,42 +279,43 @@ public class StateExplorer
         {
             opponent = BLACK;
             
-            if (m_currentState.kingSquare == from)
+            // move the piece
+            if (nextState.kingSquare == from)
             {
-                m_currentState.kingSquare = to;
+                nextState.kingSquare = to;
                 
                 // incrementally update the board hash
-                m_currentState.hash ^= HASH_KEYS[2][from];
-                m_currentState.hash ^= HASH_KEYS[2][to];
+                nextState.hash ^= HASH_KEYS[2][from];
+                nextState.hash ^= HASH_KEYS[2][to];
             }
             else
             {
-                m_currentState.white.clear(fromCol, fromRow);
-                m_currentState.white.set(toCol, toRow);
+                nextState.white.clear(fromCol, fromRow);
+                nextState.white.set(toCol, toRow);
                 
                 // incrementally update the board hash
-                m_currentState.hash ^= HASH_KEYS[1][from];
-                m_currentState.hash ^= HASH_KEYS[1][to];
+                nextState.hash ^= HASH_KEYS[1][from];
+                nextState.hash ^= HASH_KEYS[1][to];
             }
             
             // find pieces that can help the moved piece make a capture
-            m_assistingPieces.copy(m_currentState.white);
-            m_assistingPieces.set(m_currentState.kingSquare);
+            m_assistingPieces.copy(nextState.white);
+            m_assistingPieces.set(nextState.kingSquare);
             m_assistingPieces.or(BitBoardConsts.onlyKingAllowed);
             m_assistingPieces.and(BitBoardConsts.twoCrosses[to]);
             
             // find captured pieces
             m_capturedPieces.copy(m_assistingPieces);
             m_capturedPieces.toNeighbors();
-            m_capturedPieces.and(m_currentState.black);
+            m_capturedPieces.and(nextState.black);
             m_capturedPieces.and(BitBoardConsts.oneCrosses[to]);
             
             // remove captured pieces
-            m_currentState.black.andNot(m_capturedPieces);
+            nextState.black.andNot(m_capturedPieces);
             
             // check if king is in the corner
             m_escapedKing.clear();
-            m_escapedKing.set(m_currentState.kingSquare);
+            m_escapedKing.set(nextState.kingSquare);
             m_escapedKing.and(BitBoardConsts.corners);
             
             // if king gets away, white wins
@@ -341,7 +325,7 @@ public class StateExplorer
             }
         }
         
-        // add any captured pieces to the move information and update the baord hash
+        // add update the board hash from captured pieces
         if (!m_capturedPieces.isEmpty())
         {
             int num = m_capturedPieces.d0;
@@ -355,7 +339,7 @@ public class StateExplorer
                     shiftIndex++;
                     num = num >> shiftIndex;
                     index += shiftIndex;
-                    m_currentState.hash ^= HASH_KEYS[opponent][index];
+                    nextState.hash ^= HASH_KEYS[opponent][index];
                 }
                 else
                 {
@@ -376,11 +360,12 @@ public class StateExplorer
         }
         
         // update where each player's pieces are on the board for this turn
-        m_currentState.updatePieceLists();
+        nextState.updatePieceLists();
         
         // increment the turn
         m_turnNumber++;
         m_turnPlayer = m_turnNumber % 2;
+        m_currentState = nextState;
     }
     
     /**
@@ -394,10 +379,149 @@ public class StateExplorer
         m_currentState = m_stack[(m_turnNumber - m_startTurn)];
     }
     
-    private int[]    m_legalMoves      = new int[183];
-    private int      m_legalMoveCount;
-    private BitBoard m_pieces          = new BitBoard();
-    private BitBoard m_piecesReflected = new BitBoard();
+    /**
+     * Gets the move packed with the type of move.
+     * 
+     * @param move
+     *            The move to make. The index of the source square is packed into
+     *            bits 0-6. The index of the destination square is packed in bits
+     *            7-13.
+     * 
+     * @return The move with the number of captures in bits 26-25, if white's turn
+     *         and the move puts the king in sight of a corner in bit 24, if black's
+     *         turn and the move blocks the king in bit 23, and the original move in
+     *         bits 0-13.
+     */
+    public int classifyMove(int move)
+    {
+        State nextState = m_stack[(m_turnNumber - m_startTurn) + 1];
+        nextState.copy(m_currentState);
+        
+        // extract the board squares moved from and to from the move integer.
+        int from = move & 0x7F;
+        int to = (move >> 7) & 0x7F;
+        
+        int fromRow = from / 9;
+        int fromCol = from % 9;
+        int toRow = to / 9;
+        int toCol = to % 9;
+        
+        if (m_turnPlayer == BLACK)
+        {
+            // check if the king can no longer move to an exit
+            m_pieces.copy(nextState.black);
+            m_pieces.or(nextState.white);
+            m_pieces.set(nextState.kingSquare);
+            m_piecesReflected.copy(m_pieces);
+            m_piecesReflected.mirrorDiagonal();
+            
+            BitBoardConsts.getLegalMoves(nextState.kingSquare, true, m_pieces, m_piecesReflected, m_kingReachableCorners);
+            m_kingReachableCorners.and(BitBoardConsts.corners);
+            boolean kingCanLeave = !m_kingReachableCorners.isEmpty();
+            
+            // move the piece
+            nextState.black.clear(fromCol, fromRow);
+            nextState.black.set(toCol, toRow);
+            
+            // find pieces that can help the moved piece make a capture
+            m_assistingPieces.copy(nextState.black);
+            m_assistingPieces.or(BitBoardConsts.onlyKingAllowed);
+            m_assistingPieces.and(BitBoardConsts.twoCrosses[to]);
+            
+            // find captured pieces
+            int kingRow = nextState.kingSquare / 9;
+            int kingCol = nextState.kingSquare % 9;
+            
+            m_opponentPieces.copy(nextState.white);
+            m_opponentPieces.set(kingCol, kingRow);
+            
+            m_capturedPieces.copy(m_assistingPieces);
+            m_capturedPieces.toNeighbors();
+            m_capturedPieces.and(m_opponentPieces);
+            m_capturedPieces.and(BitBoardConsts.oneCrosses[to]);
+            
+            // enforce the special rules for capturing the king
+            if (m_capturedPieces.getValue(kingCol, kingRow))
+            {
+                m_kingNeighbors.clear();
+                m_kingNeighbors.set(kingCol, kingRow);
+                m_kingNeighbors.toNeighbors();
+                
+                int blackSurround = BitBoard.andCount(m_kingNeighbors, nextState.black);
+                int centerSurround = BitBoard.andCount(m_kingNeighbors, BitBoardConsts.center);
+                boolean atCenter = BitBoardConsts.king4Surround.getValue(kingCol, kingRow);
+                
+                // the king is safe on the center cross squares unless surrounded
+                if (atCenter && blackSurround + centerSurround < 4)
+                {
+                    m_capturedPieces.clear(kingCol, kingRow);
+                }
+            }
+            
+            // remove captured pieces
+            nextState.white.andNot(m_capturedPieces);
+            
+            // check if the king can no longer move to an exit
+            m_pieces.copy(nextState.black);
+            m_pieces.or(nextState.white);
+            m_pieces.set(nextState.kingSquare);
+            m_piecesReflected.copy(m_pieces);
+            m_piecesReflected.mirrorDiagonal();
+            
+            BitBoardConsts.getLegalMoves(nextState.kingSquare, true, m_pieces, m_piecesReflected, m_kingReachableCorners);
+            m_kingReachableCorners.and(BitBoardConsts.corners);
+            
+            if (kingCanLeave && m_kingReachableCorners.isEmpty())
+            {
+                move |= (1 << 23);
+            }
+        }
+        else
+        {
+            // move the piece
+            if (nextState.kingSquare == from)
+            {
+                nextState.kingSquare = to;
+            }
+            else
+            {
+                nextState.white.clear(fromCol, fromRow);
+                nextState.white.set(toCol, toRow);
+            }
+            
+            // find pieces that can help the moved piece make a capture
+            m_assistingPieces.copy(nextState.white);
+            m_assistingPieces.set(nextState.kingSquare);
+            m_assistingPieces.or(BitBoardConsts.onlyKingAllowed);
+            m_assistingPieces.and(BitBoardConsts.twoCrosses[to]);
+            
+            // find captured pieces
+            m_capturedPieces.copy(m_assistingPieces);
+            m_capturedPieces.toNeighbors();
+            m_capturedPieces.and(nextState.black);
+            m_capturedPieces.and(BitBoardConsts.oneCrosses[to]);
+            
+            // remove captured pieces
+            nextState.black.andNot(m_capturedPieces);
+            
+            // check if the king can now move to an exit
+            m_pieces.copy(nextState.black);
+            m_pieces.or(nextState.white);
+            m_pieces.set(nextState.kingSquare);
+            m_piecesReflected.copy(m_pieces);
+            m_piecesReflected.mirrorDiagonal();
+            
+            BitBoardConsts.getLegalMoves(nextState.kingSquare, true, m_pieces, m_piecesReflected, m_kingReachableCorners);
+            m_kingReachableCorners.and(BitBoardConsts.corners);
+            
+            if (!m_kingReachableCorners.isEmpty())
+            {
+                move |= (1 << 24);
+            }
+        }
+        
+        return move | (m_capturedPieces.cardinality() << 25);
+    }
     
     /**
      * Finds all moves that the player can currently make.
@@ -409,7 +533,6 @@ public class StateExplorer
         m_pieces.copy(m_currentState.black);
         m_pieces.or(m_currentState.white);
         m_pieces.set(m_currentState.kingSquare);
-        
         m_piecesReflected.copy(m_pieces);
         m_piecesReflected.mirrorDiagonal();
         
@@ -498,83 +621,6 @@ public class StateExplorer
         {
             str += "Next Move: " + (m_turnPlayer == BLACK ? "Black" : "White");
         }
-        
-        // print the number of pieces for each team
-        str += System.lineSeparator();
-        str += "Black Pieces: " + m_currentState.black.cardinality() + " ";
-        str += "White Pieces: " + (m_currentState.white
-                .cardinality() + (m_currentState.kingSquare == State.NOT_ON_BOARD ? 0 : 1)) + " ";
-        
-        // print the board nicely formatted
-        long move = (m_turnNumber > 0) ? m_currentState.move : -1;
-        int from = (int)(move & 0x7F);
-        int to = (int)((move >> 7) & 0x7F);
-        
-        str += System.lineSeparator();
-        str += "    0 1 2 3 4 5 6 7 8    " + System.lineSeparator();
-        str += "  +-------------------+  " + System.lineSeparator();
-        for (int row = 0; row < 9; row++)
-        {
-            str += row + " | ";
-            for (int col = 0; col < 9; col++)
-            {
-                int square = (row * 9) + col;
-                boolean isFrom = (from == square);
-                boolean isTo = (to == square);
-                
-                if (m_currentState.black.getValue(square))
-                {
-                    str = FormatPiece(str, "b", isTo);
-                }
-                else if (m_currentState.white.getValue(square))
-                {
-                    str = FormatPiece(str, "w", isTo);
-                }
-                else if (m_currentState.kingSquare == square)
-                {
-                    str = FormatPiece(str, "K", isTo);
-                }
-                else
-                {
-                    if (BitBoardConsts.onlyKingAllowed.getValue(col, row))
-                    {
-                        str += ". ";
-                    }
-                    else
-                    {
-                        str += isFrom ? "x " : ". ";
-                    }
-                }
-            }
-            str += "| " + row + System.lineSeparator();
-        }
-        str += "  +-------------------+  " + System.lineSeparator();
-        str += "    0 1 2 3 4 5 6 7 8    " + System.lineSeparator();
-        return str;
-    }
-    
-    /**
-     * Adds a piece to the board string.
-     * 
-     * @param current
-     *            The current board string.
-     * @param piece
-     *            The character to use for the piece on the board.
-     * @param wasMoved
-     *            Indicates if the piece moved last turn.
-     * @return The new board string.
-     */
-    private String FormatPiece(String current, String piece, boolean wasMoved)
-    {
-        if (wasMoved)
-        {
-            current = current.substring(0, current.length() - 1);
-            current += "(" + piece + ")";
-        }
-        else
-        {
-            current += piece + " ";
-        }
-        return current;
+        return str + m_currentState.toString();
     }
 }

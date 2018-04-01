@@ -11,7 +11,7 @@ public class TranspositionTable
 {
     private static final int  NODE_TYPE_LEN   = 2;
     private static final long NODE_TYPE_MASK  = 0b0011L;
-
+    
     private static final int  MOVE_LEN        = 14;
     private static final int  MOVE_SHIFT      = NODE_TYPE_LEN;
     private static final long MOVE_MASK       = 0b0011_1111_1111_1111L << MOVE_SHIFT;
@@ -36,7 +36,7 @@ public class TranspositionTable
     /**
      * How many turns ahead a new entry must be to replace older entries.
      */
-    private static final int  REPLACEMENT_AGE = 10;
+    private static final int  REPLACEMENT_AGE = 12;
     
     /**
      * Node was not found in the table.
@@ -115,7 +115,7 @@ public class TranspositionTable
         if (canReplace)
         {
             m_hashTable[index] = hash;
-            m_dateTable[index] = nodeType | ((long)move << MOVE_SHIFT) | ((long)score << SCORE_SHIFT) | ((long)depth << DEPTH_SHIFT) | ((long)turnNumber << AGE_SHIFT);
+            m_dateTable[index] = ((long)turnNumber << AGE_SHIFT) | ((long)depth << DEPTH_SHIFT) | (((long)score << SCORE_SHIFT) & SCORE_MASK) | (((long)move << MOVE_SHIFT) & MOVE_MASK) | nodeType;
         }
     }
     
@@ -128,10 +128,10 @@ public class TranspositionTable
      *            The depth of the state in the search.
      * @param turnNumber
      *            The turn number at this state.
-     * @return The node type in bits 0-1, the score in bits 2-17, and the best move
-     *         in bits 18-31.
+     * @return The node type in bits 0-1, the score in bits 2-17, the best move in
+     *         bits 18-31, and the depth in bits 32-35.
      */
-    public int get(long hash, int depth, int turnNumber)
+    public long get(long hash, int depth, int turnNumber)
     {
         // get the index to check in the table
         int index = Math.abs((int)(hash % m_size));
@@ -140,16 +140,7 @@ public class TranspositionTable
         long storedHash = m_hashTable[index];
         if (storedHash == hash)
         {
-            long data = m_dateTable[index];
-            
-            // don't use old values
-            int entryAge = (int)((data & AGE_MASK) >>> AGE_SHIFT);
-            if (turnNumber - entryAge > REPLACEMENT_AGE)
-            {
-                m_hashTable[index] = 0;
-                return NO_VALUE;
-            }
-            return (int)(data & (NODE_TYPE_MASK | SCORE_MASK | MOVE_MASK | DEPTH_MASK));
+            return m_dateTable[index];
         }
         return NO_VALUE;
     }
@@ -160,9 +151,9 @@ public class TranspositionTable
      * @param value
      *            The value returned from the transposition table.
      */
-    public static int ExtractNodeType(int value)
+    public static int ExtractNodeType(long value)
     {
-        return value & (int)NODE_TYPE_MASK;
+        return (int)(value & NODE_TYPE_MASK);
     }
     
     /**
@@ -171,9 +162,9 @@ public class TranspositionTable
      * @param value
      *            The value returned from the transposition table.
      */
-    public static int ExtractScore(int value)
+    public static int ExtractScore(long value)
     {
-        return (value & (int)SCORE_MASK) >> SCORE_SHIFT;
+        return (int)((value & SCORE_MASK) >> SCORE_SHIFT);
     }
     
     /**
@@ -182,9 +173,9 @@ public class TranspositionTable
      * @param value
      *            The value returned from the transposition table.
      */
-    public static int ExtractMove(int value)
+    public static int ExtractMove(long value)
     {
-        return (value & (int)MOVE_MASK) >>> MOVE_SHIFT;
+        return (int)((value & MOVE_MASK) >>> MOVE_SHIFT);
     }
     
     /**
@@ -193,8 +184,8 @@ public class TranspositionTable
      * @param value
      *            The value returned from the transposition table.
      */
-    public static int ExtractDepth(int value)
+    public static int ExtractDepth(long value)
     {
-        return (value & (int)DEPTH_MASK) >>> DEPTH_SHIFT;
+        return (int)((value & DEPTH_MASK) >>> DEPTH_SHIFT);
     }
 }
