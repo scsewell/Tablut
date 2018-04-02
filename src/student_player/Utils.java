@@ -1,7 +1,7 @@
 package student_player;
 
 /**
- * A class that helps manage board squares.
+ * A class that contains generally useful methods.
  * 
  * @author Scott Sewell, ID: 260617022
  */
@@ -18,7 +18,39 @@ public class Utils
     {
         int from = move & 0x7F;
         int to = (move >> 7) & 0x7F;
-        return String.format("(%s %s) -> (%s %s)", from % 9, from / 9, to % 9, to / 9);
+     
+        String str = String.format("(%s %s) -> (%s %s)", from % 9, from / 9, to % 9, to / 9);
+
+        int kingCapture = (move >> 30) & 0x1;
+        if (kingCapture != 0)
+        {
+            str += " KingCapture";  
+        }
+        
+        int kingEscape = (move >> 29) & 0x1;
+        if (kingEscape != 0)
+        {
+            str += " KingEscape";  
+        }
+        
+        int kingBlock = (move >> 28) & 0x1;
+        if (kingBlock != 0)
+        {
+            str += " KingBlock";  
+        }
+        
+        int captures = (move >> 25) & 0x3;
+        if (captures != 0)
+        {
+            str += " Captures: " + captures;  
+        }
+        
+        int kingCornerOpen = (move >> 24) & 0x1;
+        if (kingCornerOpen != 0)
+        {
+            str += " KingCanLeave";  
+        }
+        return str;
     }
     
     /**

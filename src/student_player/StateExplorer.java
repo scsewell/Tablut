@@ -201,7 +201,7 @@ public class StateExplorer
     {
         State nextState = m_stack[(m_turnNumber - m_startTurn) + 1];
         nextState.copy(m_currentState);
-     
+        
         nextState.move = move & 0x3FFF;
         nextState.hash ^= PLAYER_HASH;
         
@@ -219,7 +219,7 @@ public class StateExplorer
         if (m_turnPlayer == BLACK)
         {
             opponent = WHITE;
-
+            
             // move the piece
             nextState.black.clear(fromCol, fromRow);
             nextState.black.set(toCol, toRow);
@@ -406,19 +406,19 @@ public class StateExplorer
         int toRow = to / 9;
         int toCol = to % 9;
         
+        // check if the king can no longer move to an exit
+        m_pieces.copy(nextState.black);
+        m_pieces.or(nextState.white);
+        m_pieces.set(nextState.kingSquare);
+        m_piecesReflected.copy(m_pieces);
+        m_piecesReflected.mirrorDiagonal();
+        
+        BitBoardConsts.getLegalMoves(nextState.kingSquare, true, m_pieces, m_piecesReflected, m_kingReachableCorners);
+        m_kingReachableCorners.and(BitBoardConsts.corners);
+        boolean kingCanLeave = !m_kingReachableCorners.isEmpty();
+        
         if (m_turnPlayer == BLACK)
         {
-            // check if the king can no longer move to an exit
-            m_pieces.copy(nextState.black);
-            m_pieces.or(nextState.white);
-            m_pieces.set(nextState.kingSquare);
-            m_piecesReflected.copy(m_pieces);
-            m_piecesReflected.mirrorDiagonal();
-            
-            BitBoardConsts.getLegalMoves(nextState.kingSquare, true, m_pieces, m_piecesReflected, m_kingReachableCorners);
-            m_kingReachableCorners.and(BitBoardConsts.corners);
-            boolean kingCanLeave = !m_kingReachableCorners.isEmpty();
-            
             // move the piece
             nextState.black.clear(fromCol, fromRow);
             nextState.black.set(toCol, toRow);
@@ -440,9 +440,9 @@ public class StateExplorer
             m_capturedPieces.and(m_opponentPieces);
             m_capturedPieces.and(BitBoardConsts.oneCrosses[to]);
             
-            // enforce the special rules for capturing the king
             if (m_capturedPieces.getValue(kingCol, kingRow))
             {
+                // enforce the special rules for capturing the king
                 m_kingNeighbors.clear();
                 m_kingNeighbors.set(kingCol, kingRow);
                 m_kingNeighbors.toNeighbors();
@@ -456,24 +456,34 @@ public class StateExplorer
                 {
                     m_capturedPieces.clear(kingCol, kingRow);
                 }
+                else
+                {
+                    nextState.kingSquare = State.NOT_ON_BOARD;
+                    // black winning move
+                    move |= (1 << 30);
+                }
             }
             
             // remove captured pieces
             nextState.white.andNot(m_capturedPieces);
             
             // check if the king can no longer move to an exit
-            m_pieces.copy(nextState.black);
-            m_pieces.or(nextState.white);
-            m_pieces.set(nextState.kingSquare);
-            m_piecesReflected.copy(m_pieces);
-            m_piecesReflected.mirrorDiagonal();
-            
-            BitBoardConsts.getLegalMoves(nextState.kingSquare, true, m_pieces, m_piecesReflected, m_kingReachableCorners);
-            m_kingReachableCorners.and(BitBoardConsts.corners);
-            
-            if (kingCanLeave && m_kingReachableCorners.isEmpty())
+            if (nextState.kingSquare != State.NOT_ON_BOARD)
             {
-                move |= (1 << 23);
+                m_pieces.copy(nextState.black);
+                m_pieces.or(nextState.white);
+                m_pieces.set(nextState.kingSquare);
+                m_piecesReflected.copy(m_pieces);
+                m_piecesReflected.mirrorDiagonal();
+                
+                BitBoardConsts.getLegalMoves(nextState.kingSquare, true, m_pieces, m_piecesReflected,
+                        m_kingReachableCorners);
+                m_kingReachableCorners.and(BitBoardConsts.corners);
+                
+                if (kingCanLeave && m_kingReachableCorners.isEmpty())
+                {
+                    move |= (1 << 28);
+                }
             }
         }
         else
@@ -504,19 +514,33 @@ public class StateExplorer
             // remove captured pieces
             nextState.black.andNot(m_capturedPieces);
             
-            // check if the king can now move to an exit
-            m_pieces.copy(nextState.black);
-            m_pieces.or(nextState.white);
-            m_pieces.set(nextState.kingSquare);
-            m_piecesReflected.copy(m_pieces);
-            m_piecesReflected.mirrorDiagonal();
+            // check if king is in the corner
+            m_escapedKing.clear();
+            m_escapedKing.set(nextState.kingSquare);
+            m_escapedKing.and(BitBoardConsts.corners);
             
-            BitBoardConsts.getLegalMoves(nextState.kingSquare, true, m_pieces, m_piecesReflected, m_kingReachableCorners);
-            m_kingReachableCorners.and(BitBoardConsts.corners);
-            
-            if (!m_kingReachableCorners.isEmpty())
+            // if king gets away, white wins
+            if (!m_escapedKing.isEmpty())
             {
-                move |= (1 << 24);
+                move |= (1 << 29);
+            }
+            else
+            {
+                // check if the king can now move to an exit
+                m_pieces.copy(nextState.black);
+                m_pieces.or(nextState.white);
+                m_pieces.set(nextState.kingSquare);
+                m_piecesReflected.copy(m_pieces);
+                m_piecesReflected.mirrorDiagonal();
+                
+                BitBoardConsts.getLegalMoves(nextState.kingSquare, true, m_pieces, m_piecesReflected,
+                        m_kingReachableCorners);
+                m_kingReachableCorners.and(BitBoardConsts.corners);
+                
+                if (!kingCanLeave && !m_kingReachableCorners.isEmpty())
+                {
+                    move |= (1 << 24);
+                }
             }
         }
         
