@@ -201,7 +201,7 @@ public class StateExplorer
     {
         State nextState = m_stack[(m_turnNumber - m_startTurn) + 1];
         nextState.copy(m_currentState);
-        
+     
         nextState.move = move & 0x3FFF;
         nextState.hash ^= PLAYER_HASH;
         
@@ -219,7 +219,7 @@ public class StateExplorer
         if (m_turnPlayer == BLACK)
         {
             opponent = WHITE;
-            
+
             // move the piece
             nextState.black.clear(fromCol, fromRow);
             nextState.black.set(toCol, toRow);

@@ -97,7 +97,7 @@ public class StudentPlayerAlt extends TablutPlayer
             m_noPvMoveCount = 0;
             
             // search for the best move
-            int result = negaMax(currentState, depth, -Short.MAX_VALUE, Short.MAX_VALUE);
+            int result = pvs(currentState, depth, -Short.MAX_VALUE, Short.MAX_VALUE);
             nodesVisited += m_nodeCount;
             
             // unpack the best move and use it if this iteration was completed
@@ -109,10 +109,11 @@ public class StudentPlayerAlt extends TablutPlayer
                 {
                     bestMove = move;
                 }
-                Log.info(String.format("depth: %s  move: %s  evaluation: %s  visits: %s  first cut %s  pv move %s",
-                        depth, Utils.getMoveString(bestMove), result >> 16, m_nodeCount,
-                        (m_firstCutCount / (float)(m_firstCutCount + m_notFirstCutCount)),
-                        (m_pvMoveCount / (float)(m_pvMoveCount + m_noPvMoveCount))));
+                Log.info(String.format(
+                        "depth: %s  move: %s  evaluation: %s  visits: %s  first cut %.2f%%  pv move %.2f%%", depth,
+                        Utils.getMoveString(bestMove), result >> 16, m_nodeCount,
+                        100 * (m_firstCutCount / (float)(m_firstCutCount + m_notFirstCutCount)),
+                        100 * (m_pvMoveCount / (float)(m_pvMoveCount + m_noPvMoveCount))));
             }
             else
             {
@@ -131,14 +132,8 @@ public class StudentPlayerAlt extends TablutPlayer
     private int   m_pvMoveCount;
     private int   m_noPvMoveCount;
     
-    private int[] m_criticalMoves = new int[183];
-    private int   m_criticalMovesCount;
-    private int[] m_regularMoves  = new int[183];
-    private int   m_regularMovesCount;
-    
     /**
-     * Does a negamax search from a given node (negamax being a simplification of
-     * min-max that applies zero-sum games). Implements alpha-beta pruning.
+     * Does a principle variation search from a given node.
      * 
      * @param state
      *            The current search node.
@@ -151,7 +146,7 @@ public class StudentPlayerAlt extends TablutPlayer
      * @return The value of this node in the most significant 16 bits and the best
      *         move in the least signinicant 16 bits.
      */
-    private int negaMax(StateExplorer state, int depth, int a, int b)
+    private int pvs(StateExplorer state, int depth, int a, int b)
     {
         m_nodeCount++;
         
@@ -206,13 +201,18 @@ public class StudentPlayerAlt extends TablutPlayer
         
         // get all legal moves for this state
         int[] legalMoves = state.getAllLegalMoves();
-        m_criticalMovesCount = 0;
-        m_regularMovesCount = 0;
         
-        // get the move types and mark the principle variation move
+        // group the moves
+        int[] criticalMoves = new int[legalMoves.length];
+        int[] regularMoves = new int[legalMoves.length];
+        int criticalMovesCount = 0;
+        int regularMovesCount = 0;
+        
         for (int i = 0; i < legalMoves.length; i++)
         {
             int move = state.classifyMove(legalMoves[i]);
+            
+            // mark the principle variation move
             if ((move & 0x3FFF) == tableMove)
             {
                 move |= (1 << 30);
@@ -221,54 +221,38 @@ public class StudentPlayerAlt extends TablutPlayer
             // if the move is important, place it in the list to sort and place in front
             if ((move >>> 14) > 0)
             {
-                m_criticalMoves[m_criticalMovesCount++] = move;
+                criticalMoves[criticalMovesCount++] = move;
             }
             else
             {
-                m_regularMoves[m_regularMovesCount++] = move;
+                regularMoves[regularMovesCount++] = move;
             }
         }
         
         // sort any important moves and place them first to get more prunes
-        if (m_criticalMovesCount > 0)
-        {
-            Arrays.sort(m_criticalMoves, 0, m_criticalMovesCount);
-            
-            // put all the moves back into the move list in the new ordering
-            int lastCritIndex = m_criticalMovesCount - 1;
-            
-            for (int i = 0; i < m_criticalMovesCount; i++)
-            {
-                legalMoves[i] = m_criticalMoves[lastCritIndex - i];
-            }
-            // put back the remaining moves in no particular order
-            for (int i = 0; i < m_regularMovesCount; i++)
-            {
-                legalMoves[m_criticalMovesCount + i] = m_regularMoves[i];
-            }
-        }
+        Arrays.sort(criticalMoves, 0, criticalMovesCount);
         
         // iterate over all legal moves to find the best value among the child nodes
         int bestMove = 0;
         int bestScore = -Short.MAX_VALUE;
-        for (int i = 0; i < legalMoves.length; i++)
+        int bestIndex = 0;
+        
+        // search the best moves
+        for (int i = 0; i < criticalMovesCount; i++)
         {
             // if time is up we need to stop searching, and we shouldn't use incomplete
             // search results
             if (System.nanoTime() > m_stopTime)
             {
-                bestScore = -Short.MAX_VALUE;
-                bestMove = 0;
-                return (bestScore << 16) | bestMove;
+                return 0;
             }
             
-            int move = legalMoves[i];
+            // get the next move
+            int move = criticalMoves[(criticalMovesCount - 1) - i] & 0x3FFF;
             // apply the move to the board
             state.makeMove(move);
-            
-            int result = -negaMax(state, depth - 1, -b, -a);
-            int score = result >> 16;
-            
+            // do a search to find the score of the node
+            int score = -pvs(state, depth - 1, -b, -a) >> 16;
             // undo the move
             state.unmakeMove();
             
@@ -277,27 +261,100 @@ public class StudentPlayerAlt extends TablutPlayer
             {
                 bestScore = score;
                 bestMove = move;
-            }
-            
-            if (a < bestScore)
-            {
-                a = bestScore;
-            }
-            
-            // alpha-beta prune
-            if (a >= b)
-            {
-                break;
+                bestIndex = i;
+                
+                if (a < bestScore)
+                {
+                    a = bestScore;
+                    // alpha-beta prune
+                    if (a >= b)
+                    {
+                        m_firstCutCount++;
+                        
+                        // update tt and return the best move and best value
+                        PutTTEntry(state, depth, aOrig, b, bestScore, bestMove);
+                        return (bestScore << 16) | bestMove;
+                    }
+                }
             }
         }
         
-        // update the transposition table with the node value
+        if (legalMoves.length > 0)
+        {
+            if (bestIndex < criticalMovesCount)
+            {
+                m_firstCutCount++;
+            }
+            else
+            {
+                m_notFirstCutCount++;
+            }
+        }
+
+        // search the remaining moves
+        for (int i = 0; i < regularMovesCount; i++)
+        {
+            // if time is up we need to stop searching, and we shouldn't use incomplete
+            // search results
+            if (System.nanoTime() > m_stopTime)
+            {
+                return 0;
+            }
+            
+            // get the next move
+            int move = regularMoves[i] & 0x3FFF;
+            // apply the move to the board
+            state.makeMove(move);
+            // Search moves not likely to score higher than what is already found with a
+            // null window. This means that the search will finish quickly if there is no
+            // better score, and return quickly if there is one.
+            int score = -pvs(state, depth - 1, -(a + 1), -a) >> 16;
+            // If there is a score that may be better do a full search with the normal
+            // window.
+            if (a < score && score < b && depth > 1)
+            {
+                score = -pvs(state, depth - 1, -b, -a) >> 16;
+            }
+            // undo the move
+            state.unmakeMove();
+
+            // check if the move is the best found so far and update the lower bound
+            if (bestScore < score)
+            {
+                bestScore = score;
+                bestMove = move;
+                bestIndex = i;
+                
+                if (a < bestScore)
+                {
+                    a = bestScore;
+                    // alpha-beta prune
+                    if (a >= b)
+                    {
+                        // update tt and return the best move and best value
+                        PutTTEntry(state, depth, aOrig, b, bestScore, bestMove);
+                        return (bestScore << 16) | bestMove;
+                    }
+                }
+            }
+        }
+        
+        // update tt and return the best move and best value
+        PutTTEntry(state, depth, aOrig, b, bestScore, bestMove);
+        return (bestScore << 16) | bestMove;
+    }
+    
+    /**
+     * Updates the transposition table value for a node.
+     */
+    private void PutTTEntry(StateExplorer state, int depth, int a, int b, int score, int move)
+    {
         int nodeType;
-        if (bestScore <= aOrig)
+        if (score <= a)
         {
             nodeType = TranspositionTable.ALL_NODE;
         }
-        else if (bestScore >= b)
+        else if (score >= b)
         {
             nodeType = TranspositionTable.CUT_NODE;
         }
@@ -305,11 +362,7 @@ public class StudentPlayerAlt extends TablutPlayer
         {
             nodeType = TranspositionTable.PV_NODE;
         }
-        
-        m_transpositionTable.put(hash, nodeType, depth, bestScore, bestMove, state.getTurnNumber());
-        
-        // return the best move and best value
-        return (bestScore << 16) | bestMove;
+        m_transpositionTable.put(state.getHash(), nodeType, depth, score, move, state.getTurnNumber());
     }
     
     /**
@@ -353,11 +406,11 @@ public class StudentPlayerAlt extends TablutPlayer
         white.set(5, 6);
         white.set(6, 2);
         
-        //StateExplorer s = new StateExplorer(2, new State(black, white, 40));
+        // StateExplorer s = new StateExplorer(2, new State(black, white, 40));
         StateExplorer s = new StateExplorer(new TablutBoardState());
         
         StudentPlayerAlt player = new StudentPlayerAlt();
-        s.makeMove(player.getBestMove(s, TURN_TIMEOUT));
+        s.makeMove(player.getBestMove(s, 3500000000L));
     }
     
     private static int Test(StateExplorer state, int depth)

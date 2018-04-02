@@ -10,97 +10,97 @@ public class Evaluator
     /**
      * The minimum utility value of a win.
      */
-    public static final short     WIN_VALUE                          = 30000;
+    public static final short    WIN_VALUE                          = 30000;
     
     /**
      * The mapping from piece type and location to net value.
      */
-    public static final int[][]   SQUARE_VALUES;
+    public static final int[][]  SQUARE_VALUES;
     
     /**
      * The diamond shaped region at the center of the board where white starts.
      */
-    private static final BitBoard REGION_CENTER;
-    private static final int      REGION_CENTER_VALUE_BLACK          = -3;
-    private static final int      REGION_CENTER_VALUE_WHITE          = -2;
-    private static final int      REGION_CENTER_VALUE_KING           = 0;
+    public static final BitBoard REGION_CENTER;
+    public static final int      REGION_CENTER_VALUE_BLACK          = -3;
+    public static final int      REGION_CENTER_VALUE_WHITE          = -2;
+    public static final int      REGION_CENTER_VALUE_KING           = 0;
     
     /**
      * The regions of the board at the middle of the edges of the board.
      */
-    private static final BitBoard REGION_EDGE;
-    private static final int      REGION_EDGE_VALUE_BLACK            = -3;
-    private static final int      REGION_EDGE_VALUE_WHITE            = -2;
-    private static final int      REGION_EDGE_VALUE_KING             = 5;
+    public static final BitBoard REGION_EDGE;
+    public static final int      REGION_EDGE_VALUE_BLACK            = -3;
+    public static final int      REGION_EDGE_VALUE_WHITE            = -2;
+    public static final int      REGION_EDGE_VALUE_KING             = 5;
     
     /**
      * The region between the edges of the board and the center region.
      */
-    private static final BitBoard REGION_CORE;
-    private static final int      REGION_CORE_VALUE_BLACK            = 3;
-    private static final int      REGION_CORE_VALUE_WHITE            = 3;
-    private static final int      REGION_CORE_VALUE_KING             = 3;
+    public static final BitBoard REGION_CORE;
+    public static final int      REGION_CORE_VALUE_BLACK            = 3;
+    public static final int      REGION_CORE_VALUE_WHITE            = 3;
+    public static final int      REGION_CORE_VALUE_KING             = 3;
     
     /**
      * The board squares vertically or horizontally adjacent to the corner squares.
      */
-    private static final BitBoard REGION_CORNER_ADJACENT;
-    private static final int      REGION_CORNER_ADJACENT_VALUE_BLACK = -6;
-    private static final int      REGION_CORNER_ADJACENT_VALUE_WHITE = -15;
-    private static final int      REGION_CORNER_ADJACENT_VALUE_KING  = -10;
+    public static final BitBoard REGION_CORNER_ADJACENT;
+    public static final int      REGION_CORNER_ADJACENT_VALUE_BLACK = -6;
+    public static final int      REGION_CORNER_ADJACENT_VALUE_WHITE = -15;
+    public static final int      REGION_CORNER_ADJACENT_VALUE_KING  = -10;
     
     /**
      * The squares vertically or horizontally spaced one square away from the corner
      * squares.
      */
-    private static final BitBoard REGION_CORNER_BLOCK;
-    private static final int      REGION_CORNER_BLOCK_VALUE_BLACK    = 10;
-    private static final int      REGION_CORNER_BLOCK_VALUE_WHITE    = 0;
-    private static final int      REGION_CORNER_BLOCK_VALUE_KING     = 5;
+    public static final BitBoard REGION_CORNER_BLOCK;
+    public static final int      REGION_CORNER_BLOCK_VALUE_BLACK    = 10;
+    public static final int      REGION_CORNER_BLOCK_VALUE_WHITE    = 0;
+    public static final int      REGION_CORNER_BLOCK_VALUE_KING     = 6;
     
     /**
      * The board squares diagonally adjacent to the corner squares.
      */
-    private static final BitBoard REGION_CORNER_DIAGONAL;
-    private static final int      REGION_CORNER_DIAGONAL_VALUE_BLACK = 10;
-    private static final int      REGION_CORNER_DIAGONAL_VALUE_WHITE = 4;
-    private static final int      REGION_CORNER_DIAGONAL_VALUE_KING  = 7;
+    public static final BitBoard REGION_CORNER_DIAGONAL;
+    public static final int      REGION_CORNER_DIAGONAL_VALUE_BLACK = 10;
+    public static final int      REGION_CORNER_DIAGONAL_VALUE_WHITE = 2;
+    public static final int      REGION_CORNER_DIAGONAL_VALUE_KING  = 5;
     
     /**
      * The value of the black pieces values.
      */
-    public static final int       BLACK_PIECE_VALUE                  = 1200;
+    public static final int      BLACK_PIECE_VALUE                  = 1200;
     
     /**
      * The value of white pieces. This is higher because black has a number
      * advantage, so trading pieces is particularily bad for white.
      */
-    public static final int       WHITE_PIECE_VALUE                  = 1000;
+    public static final int      WHITE_PIECE_VALUE                  = 1000;
     
     /**
      * The value of moves that could capture a piece.
      */
-    public static final int       THREAT_VALUE                       = 330;
+    public static final int      THREAT_VALUE                       = 330;
     
     /**
      * The value added to a peice per move able to be made.
      */
-    public static final int       MOVE_VALUE                         = 5;
+    public static final int      MOVE_VALUE                         = 5;
     
     /*
      * The value of the each square closer a black piece is to the king.
      */
-    public static final int       KING_DISTANCE_VALUE                = 18;
+    public static final int      KING_DISTANCE_VALUE                = 18;
     
     /**
      * The value added to the king per move able to be made.
      */
-    public static final int       KING_MOVE_VALUE                    = 150;
+    public static final int      KING_MOVE_VALUE                    = 150;
     
     /**
      * The weighting of the square values in the evaluation.
      */
-    public static final int       SQUARE_VALUE_MULTIPIER             = 5;
+    public static final int      SQUARE_VALUE_MULTIPIER             = 5;
     
     /**
      * Static constructor.
@@ -227,16 +227,16 @@ public class Evaluator
         
         // get the legal moves for each black piece
         int blackSquareValues = 0;
-//        int blackMovableSquares = 0;
+        int blackMovableSquares = 0;
         int blackKingDistance = 0;
         for (int i = 0; i < state.blackCount; i++)
         {
             int square = state.blackPieces[i];
             blackSquareValues += SQUARE_VALUES[0][square];
-//            BitBoard legalMoves = m_blackLegalMoves[i];
-//            BitBoardConsts.getLegalMoves(square, false, m_pieces, m_piecesReflected, legalMoves);
-//            m_allBlackLegalMoves.or(legalMoves);
-//            blackMovableSquares += legalMoves.cardinality();
+            BitBoard legalMoves = m_blackLegalMoves[i];
+            BitBoardConsts.getLegalMoves(square, false, m_pieces, m_piecesReflected, legalMoves);
+            m_allBlackLegalMoves.or(legalMoves);
+            blackMovableSquares += legalMoves.cardinality();
             blackKingDistance += Math.abs(kingCol - (square % 9)) + Math.abs(kingRow - (square / 9));
         }
         if (state.blackCount > 0)
@@ -267,15 +267,17 @@ public class Evaluator
         int valueForBlack = 0;
         
         // get the number of threating moves each player can make
-//        int blackThreats = countThreats(state.white, state.black, m_allBlackLegalMoves);
-//        int whiteThreats = countThreats(state.black, state.white, m_allWhiteLegalMoves);
-//        valueForBlack += (blackThreats - whiteThreats) * THREAT_VALUE;
+        // int blackThreats = countThreats(state.white, state.black,
+        // m_allBlackLegalMoves);
+        // int whiteThreats = countThreats(state.black, state.white,
+        // m_allWhiteLegalMoves);
+        // valueForBlack += (blackThreats - whiteThreats) * THREAT_VALUE;
         
         // black does better when it's pieces are near to the king
         valueForBlack -= blackKingDistance * KING_DISTANCE_VALUE;
         
         // the ability to make more moves is valuable, especially for the king
-//        valueForBlack += (blackMovableSquares * MOVE_VALUE);
+        valueForBlack += (blackMovableSquares * MOVE_VALUE);
         valueForBlack -= (whiteMovableSquares * MOVE_VALUE) + (kingMovableSquares * KING_MOVE_VALUE);
         
         // get the value for the pieces based on their current squares
