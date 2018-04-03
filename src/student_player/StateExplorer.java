@@ -27,9 +27,10 @@ import tablut.TablutBoardState;
  */
 public class StateExplorer
 {
-    public static final int      BLACK     = 0;
-    public static final int      WHITE     = 1;
-    public static final int      MAX_MOVES = 100;
+    public static final int      BLACK           = 0;
+    public static final int      WHITE           = 1;
+    public static final int      MAX_TURNS       = 100;
+    public static final int      MAX_LEGAL_MOVES = 183;
     
     /**
      * The Zorbist hash values, a table containing unique hashes for a black, white,
@@ -76,11 +77,11 @@ public class StateExplorer
     {
         // make sure the turn number is valid and use it to get the current turn's
         // player
-        m_turnNumber = Math.min(Math.max(turn, 1), MAX_MOVES) - 1;
+        m_turnNumber = Math.min(Math.max(turn, 1), MAX_TURNS) - 1;
         m_startTurn = m_turnNumber;
         
         // initialize the state stack with enough states to play out any remaining moves
-        m_stack = new State[(1 + MAX_MOVES) - m_startTurn];
+        m_stack = new State[(1 + MAX_TURNS) - m_startTurn];
         
         initialize(state);
     }
@@ -98,7 +99,7 @@ public class StateExplorer
         m_startTurn = m_turnNumber;
         
         // initialize the state stack with enough states to play out any remaining moves
-        m_stack = new State[(1 + MAX_MOVES) - m_startTurn];
+        m_stack = new State[(1 + MAX_TURNS) - m_startTurn];
         
         initialize(new State(state));
     }
@@ -129,7 +130,7 @@ public class StateExplorer
      */
     public boolean isTerminal()
     {
-        return m_winner != Board.NOBODY || m_turnNumber == MAX_MOVES;
+        return m_winner != Board.NOBODY || m_turnNumber == MAX_TURNS;
     }
     
     /**
@@ -145,7 +146,7 @@ public class StateExplorer
      */
     public int getRemainingMoves()
     {
-        return isTerminal() ? 0 : MAX_MOVES - m_turnNumber;
+        return isTerminal() ? 0 : MAX_TURNS - m_turnNumber;
     }
     
     /**
@@ -164,9 +165,9 @@ public class StateExplorer
         if (m_winner != Board.NOBODY)
         {
             // wins closer to the first turn are considered more valuable
-            return (short)((m_turnPlayer == m_winner ? 1 : -1) * (Evaluator.WIN_VALUE + (MAX_MOVES - m_turnNumber)));
+            return (short)((m_turnPlayer == m_winner ? 1 : -1) * (Evaluator.WIN_VALUE + (MAX_TURNS - m_turnNumber)));
         }
-        else if (m_turnNumber == MAX_MOVES)
+        else if (m_turnNumber == MAX_TURNS)
         {
             // draw is 0 utility for both players
             return 0;
@@ -178,8 +179,6 @@ public class StateExplorer
         }
     }
     
-    private int[]    m_legalMoves           = new int[183];
-    private int      m_legalMoveCount;
     private BitBoard m_pieces               = new BitBoard();
     private BitBoard m_piecesReflected      = new BitBoard();
     private BitBoard m_kingReachableCorners = new BitBoard();
@@ -549,46 +548,55 @@ public class StateExplorer
     
     /**
      * Finds all moves that the player can currently make.
+     * 
+     * @param moves
+     *            The array that stores the generated moves.
+     * 
+     * @return The number of moves stored in the move array.
      */
-    public int[] getAllLegalMoves()
+    public int getAllLegalMoves(int[] moves)
     {
-        m_legalMoveCount = 0;
-        
         m_pieces.copy(m_currentState.black);
         m_pieces.or(m_currentState.white);
         m_pieces.set(m_currentState.kingSquare);
         m_piecesReflected.copy(m_pieces);
         m_piecesReflected.mirrorDiagonal();
-        
+
+        int moveCount = 0;
         if (m_turnPlayer == BLACK)
         {
             for (int i = 0; i < m_currentState.blackCount; i++)
             {
-                getMoves(m_currentState.blackPieces[i], false);
+                moveCount = getMoves(moves, moveCount, m_currentState.blackPieces[i], false);
             }
         }
         else
         {
-            getMoves(m_currentState.kingSquare, true);
+            moveCount = getMoves(moves, moveCount, m_currentState.kingSquare, true);
             
             for (int i = 0; i < m_currentState.whiteCount; i++)
             {
-                getMoves(m_currentState.whitePieces[i], false);
+                moveCount = getMoves(moves, moveCount, m_currentState.whitePieces[i], false);
             }
         }
-        
-        return Arrays.copyOf(m_legalMoves, m_legalMoveCount);
+        return moveCount;
     }
     
     /**
      * Gets the legal moves that may be made for a piece.
      * 
+     * @param moves
+     *            The array that stores the generated legal moves.
+     * @param moveCount
+     *            The number of moves stored in the move array.
      * @param square
      *            The board square index of the piece.
      * @param isKing
      *            Indicates if this piece is the king.
+     * 
+     * @return The updated number of moves stored in the move array.
      */
-    private void getMoves(int square, boolean isKing)
+    private int getMoves(int[] moves, int moveCount, int square, boolean isKing)
     {
         int row = square / 9;
         int col = square % 9;
@@ -605,7 +613,7 @@ public class StateExplorer
         {
             if ((rowMoves & (1 << i)) != 0)
             {
-                m_legalMoves[m_legalMoveCount++] = square | ((baseIndex + i) << 7);
+                moves[moveCount++] = square | ((baseIndex + i) << 7);
             }
         }
         
@@ -613,9 +621,10 @@ public class StateExplorer
         {
             if ((colMoves & (1 << i)) != 0)
             {
-                m_legalMoves[m_legalMoveCount++] = square | (((i * 9) + col) << 7);
+                moves[moveCount++] = square | (((i * 9) + col) << 7);
             }
         }
+        return moveCount;
     }
     
     /*

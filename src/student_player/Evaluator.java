@@ -67,13 +67,17 @@ public class Evaluator
     public static final int      REGION_CORNER_DIAGONAL_VALUE_KING  = 5;
     
     /**
+     * The weighting of the square values in the evaluation.
+     */
+    public static final int      SQUARE_VALUE_MULTIPIER             = 5;
+    
+    /**
      * The value of the black pieces values.
      */
     public static final int      BLACK_PIECE_VALUE                  = 1200;
     
     /**
-     * The value of white pieces. This is higher because black has a number
-     * advantage, so trading pieces is particularily bad for white.
+     * The value of white pieces.
      */
     public static final int      WHITE_PIECE_VALUE                  = 1000;
     
@@ -98,9 +102,9 @@ public class Evaluator
     public static final int      KING_MOVE_VALUE                    = 150;
     
     /**
-     * The weighting of the square values in the evaluation.
+     * The value of an unblocked view of a corner for the king.
      */
-    public static final int      SQUARE_VALUE_MULTIPIER             = 5;
+    public static final int      KING_CORNER_MOVE_VALUE             = 700;
     
     /**
      * Static constructor.
@@ -189,6 +193,7 @@ public class Evaluator
     private BitBoard   m_allWhiteLegalMoves = new BitBoard();
     private BitBoard   m_pieces             = new BitBoard();
     private BitBoard   m_piecesReflected    = new BitBoard();
+    private BitBoard   m_kingExitCorner     = new BitBoard();
     
     /**
      * Constructor.
@@ -286,6 +291,19 @@ public class Evaluator
         // get the piece difference
         valueForBlack += state.blackCount * BLACK_PIECE_VALUE;
         valueForBlack -= state.whiteCount * WHITE_PIECE_VALUE;
+        
+        // black does poorly if the king can reach a corner
+        m_kingExitCorner.copy(m_kingLegalMoves);
+        m_kingExitCorner.and(BitBoardConsts.corners);
+        switch (m_kingExitCorner.cardinality())
+        {
+            case 1: // very risky for black, forced to make a move
+                valueForBlack -= KING_CORNER_MOVE_VALUE;
+                break;
+            case 2: // game over for black
+                valueForBlack = -WIN_VALUE;
+                break;
+        }
         
         // check that the value is in the required range
         if (valueForBlack < -Short.MAX_VALUE || Short.MAX_VALUE < valueForBlack)
