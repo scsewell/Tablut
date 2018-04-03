@@ -215,7 +215,7 @@ public class StudentPlayer extends TablutPlayer
             // mark the principle variation move
             if ((move & 0x3FFF) == tableMove)
             {
-                move |= (1 << 30);
+                move |= (1 << 28);
             }
             
             // if the move is important, place it in the list to sort and place in front
@@ -406,7 +406,8 @@ public class StudentPlayer extends TablutPlayer
         white.set(5, 6);
         white.set(6, 2);
         
-        StateExplorer s = new StateExplorer(2, new State(black, white, 40));
+        //StateExplorer s = new StateExplorer(2, new State(black, white, 40));
+        StateExplorer s = new StateExplorer(new TablutBoardState());
         
         StudentPlayer player = new StudentPlayer();
         s.makeMove(player.getBestMove(s, TURN_TIMEOUT));

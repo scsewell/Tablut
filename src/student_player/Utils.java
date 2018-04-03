@@ -21,20 +21,22 @@ public class Utils
      
         String str = String.format("(%s %s) -> (%s %s)", from % 9, from / 9, to % 9, to / 9);
 
-        int kingCapture = (move >> 30) & 0x1;
-        if (kingCapture != 0)
+        if (((move >> 30) & 0x1) != 0)
         {
             str += " KingCapture";  
         }
         
-        int kingEscape = (move >> 29) & 0x1;
-        if (kingEscape != 0)
+        if (((move >> 29) & 0x1) != 0)
         {
             str += " KingEscape";  
         }
         
-        int kingBlock = (move >> 28) & 0x1;
-        if (kingBlock != 0)
+        if (((move >> 28) & 0x1) != 0)
+        {
+            str += " PVMove";  
+        }
+        
+        if (((move >> 27) & 0x1) != 0)
         {
             str += " KingBlock";  
         }
@@ -45,11 +47,16 @@ public class Utils
             str += " Captures: " + captures;  
         }
         
-        int kingCornerOpen = (move >> 24) & 0x1;
-        if (kingCornerOpen != 0)
+        if (((move >> 24) & 0x1) != 0)
         {
             str += " KingCanLeave";  
         }
+        
+        if (((move >> 22) & 0x1) != 0)
+        {
+            str += " Killer";  
+        }
+        
         return str;
     }
     

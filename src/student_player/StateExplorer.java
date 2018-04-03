@@ -387,10 +387,10 @@ public class StateExplorer
      *            bits 0-6. The index of the destination square is packed in bits
      *            7-13.
      * 
-     * @return The move with the number of captures in bits 26-25, if white's turn
-     *         and the move puts the king in sight of a corner in bit 24, if black's
-     *         turn and the move blocks the king in bit 23, and the original move in
-     *         bits 0-13.
+     * @return The move with black win in bit 30, white win in bit 29, if black's
+     *         turn and the move blocks the king's exit in bit 27, the number of
+     *         captures in bits 26-25, if white's turn and the move puts the king in
+     *         sight of a corner in bit 24, and the original move in bits 0-13.
      */
     public int classifyMove(int move)
     {
@@ -482,7 +482,7 @@ public class StateExplorer
                 
                 if (kingCanLeave && m_kingReachableCorners.isEmpty())
                 {
-                    move |= (1 << 28);
+                    move |= (1 << 27);
                 }
             }
         }
