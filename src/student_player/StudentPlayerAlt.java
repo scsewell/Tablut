@@ -264,6 +264,7 @@ public class StudentPlayerAlt extends TablutPlayer
         // }
         // }
         // }
+        int IIDMove = 0;
         
         // group the moves
         int[] criticalMoves = m_criticalMoves[ply];
