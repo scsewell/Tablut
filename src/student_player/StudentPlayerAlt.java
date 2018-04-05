@@ -31,11 +31,22 @@ public class StudentPlayerAlt extends TablutPlayer
      */
     private static final int         TRANSPOSITION_TABLE_SIZE = 340;
     
+    /**
+     * The maximum number of repetitions the AI will allow itself to make unless
+     * there is no vaible alternative.
+     */
+    private static final int         REPETITION_LIMIT         = 3;
+    
     private final TranspositionTable m_transpositionTable     = new TranspositionTable(TRANSPOSITION_TABLE_SIZE);
     private final KillerTable        m_killers                = new KillerTable(100);
-    private int[][]                  m_legalMoves             = new int[101][StateExplorer.MAX_LEGAL_MOVES];
-    private int[][]                  m_criticalMoves          = new int[101][StateExplorer.MAX_LEGAL_MOVES];
-    private int[][]                  m_regularMoves           = new int[101][StateExplorer.MAX_LEGAL_MOVES];
+    private final int[][]            m_legalMoves             = new int[101][StateExplorer.MAX_LEGAL_MOVES];
+    private final int[][]            m_criticalMoves          = new int[101][StateExplorer.MAX_LEGAL_MOVES];
+    private final int[][]            m_regularMoves           = new int[101][StateExplorer.MAX_LEGAL_MOVES];
+    private State                    m_lastState1             = new State();
+    private State                    m_lastState2             = new State();
+    private int                      m_lastMove1;
+    private int                      m_lastMove2;
+    private int                      m_repetitionCount;
     private long                     m_stopTime;
     
     /**
@@ -86,9 +97,6 @@ public class StudentPlayerAlt extends TablutPlayer
     private int getBestMove(StateExplorer currentState, long timeout)
     {
         Log.info(currentState);
-     
-//        timeout = 999999999999L;
-//        int maxDepth = 7;
         
         // get the time we want to have a result by
         long startTime = System.nanoTime();
@@ -113,31 +121,6 @@ public class StudentPlayerAlt extends TablutPlayer
             m_nodeCount = 0;
             
             int result = pvs(currentState, 0, depth, -Short.MAX_VALUE, Short.MAX_VALUE, true);
-            // if (depth > 2)
-            // {
-            // // set an aspiration window with roughly a third the value of a peice
-            // int alpha = bestScore - 5;
-            // int beta = bestScore + 5;
-            // result = pvs(currentState, depth, alpha, beta);
-            //
-            // // if the score is outside the window we need to re-search with a full window
-            // int score = result >> 16;
-            // if (score <= alpha)
-            // {
-            // Log.info("Fail Low: " + score);
-            // result = pvs(currentState, depth, -Short.MAX_VALUE, beta);
-            // }
-            // else if (beta <= score)
-            // {
-            // Log.info("Fail High: " + score);
-            // result = pvs(currentState, depth, alpha, Short.MAX_VALUE);
-            // }
-            // }
-            // else
-            // {
-            // // if the score is not informed enough do a full search
-            // result = pvs(currentState, depth, -Short.MAX_VALUE, Short.MAX_VALUE);
-            // }
             nodesVisited += m_nodeCount;
             
             // unpack the best move and use it if this iteration was completed
@@ -157,6 +140,22 @@ public class StudentPlayerAlt extends TablutPlayer
                 break;
             }
         }
+        
+        // keep track of how many times this board has been seen
+        if (m_lastMove2 == bestMove && m_lastState2.equals(currentState.getState()))
+        {
+            m_repetitionCount++;
+            Log.info("Repetition Count: " + m_repetitionCount);
+        }
+        else
+        {
+            m_repetitionCount = 0;
+        }
+        m_lastState2.copy(m_lastState1);
+        m_lastState1.copy(currentState.getState());
+        m_lastMove2 = m_lastMove1;
+        m_lastMove1 = bestMove;
+        
         Log.info(String.format("Total nodes visited: %s", nodesVisited));
         Log.info(String.format("Time used: %s", (System.nanoTime() - startTime) / 1000000000.0));
         Log.printMemoryUsage();
@@ -209,7 +208,7 @@ public class StudentPlayerAlt extends TablutPlayer
             
             // this entry stores more complete search information to a greater or equal
             // depth, so we can just use the stored values
-            if (entryDepth >= depth)
+            if (entryDepth >= depth && !isRepetition(tableMove, ply))
             {
                 // the score represents a different value based on the node type
                 switch (TranspositionTable.ExtractNodeType(entry))
@@ -223,11 +222,11 @@ public class StudentPlayerAlt extends TablutPlayer
                         b = Math.min(b, score);
                         break;
                 }
-            }
-            // alpha-beta prune
-            if (a >= b)
-            {
-                return packMoveScore(tableMove, score);
+                // alpha-beta prune
+                if (a >= b)
+                {
+                    return packMoveScore(tableMove, score);
+                }
             }
         }
         
@@ -235,37 +234,37 @@ public class StudentPlayerAlt extends TablutPlayer
         int bestMove = 0;
         int bestScore = -Short.MAX_VALUE;
         
-        // Search the pv move if we got it from the table.
-        // Most of the time this is the best move.
-        // We search it before move generation since if we get a cut-off we can save the
-        // time
+        // Search the pv move if we got it from the table. Most of the time this is the
+        // best move. We search it before move generation since if we get a cut-off we
+        // can save the time.
         if (tableMove != 0)
         {
             m_pvMoveCount++;
             
-            // apply the move to the board
-            state.makeMove(tableMove);
-            // do a search to find the score of the node
-            int score = -pvs(state, ply + 1, depth - 1, -b, -a, true) >> 16;
-            // undo the move
-            state.unmakeMove();
-            
-            // check if the move is the best found so far and update the lower bound
-            if (bestScore < score)
+            // avoid repeated boards
+            if (!isRepetition(tableMove, ply))
             {
-                bestScore = score;
-                bestMove = tableMove;
+                state.makeMove(tableMove);
+                int score = -pvs(state, ply + 1, depth - 1, -b, -a, true) >> 16;
+                state.unmakeMove();
                 
-                if (a < bestScore)
+                // check if the move is the best found so far and update the lower bound
+                if (bestScore < score)
                 {
-                    a = bestScore;
+                    bestScore = score;
+                    bestMove = tableMove;
                     
-                    // alpha-beta prune
-                    if (a >= b)
+                    if (a < bestScore)
                     {
-                        m_firstCutCount++;
-                        PutTTEntry(state, depth, aOrig, b, bestScore, bestMove);
-                        return packMoveScore(bestMove, bestScore);
+                        a = bestScore;
+                        
+                        // alpha-beta prune
+                        if (a >= b)
+                        {
+                            m_firstCutCount++;
+                            PutTTEntry(state, depth, aOrig, b, bestScore, bestMove);
+                            return packMoveScore(bestMove, bestScore);
+                        }
                     }
                 }
             }
@@ -313,7 +312,7 @@ public class StudentPlayerAlt extends TablutPlayer
             int move = moves[i];
             
             // skip the principle variation move, it was already searched
-            if (move == tableMove)
+            if (move == tableMove || isRepetition(move, ply))
             {
                 continue;
             }
@@ -351,20 +350,14 @@ public class StudentPlayerAlt extends TablutPlayer
         // search the best moves
         for (int i = 0; i < criticalMovesCount; i++)
         {
-            // if time is up we need to stop searching, and we shouldn't use incomplete
-            // search results
             if (System.nanoTime() > m_stopTime)
             {
                 return 0;
             }
             
-            // get the next move
             int move = criticalMoves[(criticalMovesCount - 1) - i];
-            // apply the move to the board
             state.makeMove(move);
-            // do a search to find the score of the node
             int score = -pvs(state, ply + 1, depth - 1, -b, -a, false) >> 16;
-            // undo the move
             state.unmakeMove();
             
             // check if the move is the best found so far and update the lower bound
@@ -380,6 +373,7 @@ public class StudentPlayerAlt extends TablutPlayer
                     // alpha-beta prune
                     if (a >= b)
                     {
+                        m_firstCutCount++;
                         prune = true;
                         break;
                     }
@@ -392,16 +386,12 @@ public class StudentPlayerAlt extends TablutPlayer
         {
             for (int i = 0; i < regularMovesCount; i++)
             {
-                // if time is up we need to stop searching, and we shouldn't use incomplete
-                // search results
                 if (System.nanoTime() > m_stopTime)
                 {
                     return 0;
                 }
                 
-                // get the next move
                 int move = regularMoves[i];
-                // apply the move to the board
                 state.makeMove(move);
                 // Search moves not likely to score higher than what is already found with a
                 // null window. This means that the search will finish quickly if there is no
@@ -414,7 +404,6 @@ public class StudentPlayerAlt extends TablutPlayer
                 {
                     score = -pvs(state, ply + 1, depth - 1, -b, -a, false) >> 16;
                 }
-                // undo the move
                 state.unmakeMove();
                 
                 // check if the move is the best found so far and update the lower bound
@@ -436,11 +425,6 @@ public class StudentPlayerAlt extends TablutPlayer
                     }
                 }
             }
-        }
-        
-        if (prune && (bestMove >> 14) > 0)
-        {
-            m_firstCutCount++;
         }
         
         // update transposition table
@@ -595,6 +579,19 @@ public class StudentPlayerAlt extends TablutPlayer
     }
     
     /**
+     * Checks if a move would be a repetition loop.
+     * 
+     * @param state
+     *            The current move to check if repeated.
+     * @param ply
+     *            The current ply of the search.
+     */
+    private boolean isRepetition(int move, int ply)
+    {
+        return m_repetitionCount > REPETITION_LIMIT && ply == 0 && (move & 0x3FFF) == m_lastMove2;
+    }
+    
+    /**
      * Contains a small test.
      */
     public static void main(String[] args)
@@ -640,7 +637,7 @@ public class StudentPlayerAlt extends TablutPlayer
         StateExplorer s = new StateExplorer(new TablutBoardState());
         
         StudentPlayerAlt player = new StudentPlayerAlt();
-        s.makeMove(player.getBestMove(s, 10000000000L));
+        s.makeMove(player.getBestMove(s, 5 * TURN_TIMEOUT));
     }
     
     private static int Test(StateExplorer state, int depth)

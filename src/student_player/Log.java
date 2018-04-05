@@ -114,7 +114,7 @@ public class Log
     public static void info(String message)
     {
         // logging is disabled for competition
-        instance().m_logger.info(message);
+        //instance().m_logger.info(message);
     }
 
     /**

@@ -204,6 +204,17 @@ public class State
         return pieceCount;
     }
     
+    /**
+     * Compates this state to another.
+     * 
+     * @param other The state to compare with.
+     * @return True if the states are equivalent.
+     */
+    public boolean equals(State other)
+    {
+        return black.equals(other.black) && white.equals(other.white) && kingSquare == other.kingSquare;
+    }
+    
     /*
      * Prints the State in a nice format. Indicates the last moved piece by placing
      * brackets around it and marks where it moved from with an 'x'.

@@ -28,7 +28,7 @@ public class Utils
         
         if (((move >> 29) & 0x1) != 0)
         {
-            str += " KingEscape";  
+            str += " KingEscape";
         }
         
         if (((move >> 28) & 0x1) != 0)
@@ -44,17 +44,17 @@ public class Utils
         int captures = (move >> 25) & 0x3;
         if (captures != 0)
         {
-            str += " Captures: " + captures;  
+            str += " Captures: " + captures;
         }
         
         if (((move >> 24) & 0x1) != 0)
         {
-            str += " KingCanLeave";  
+            str += " KingCanLeave";
         }
         
         if (((move >> 22) & 0x1) != 0)
         {
-            str += " Killer";  
+            str += " Killer";
         }
         
         return str;

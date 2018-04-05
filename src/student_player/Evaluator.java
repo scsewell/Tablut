@@ -114,7 +114,7 @@ public class Evaluator
         //@formatter:off
         REGION_CENTER = new BitBoard(
                 0b000010000_000000000_000000000,
-                0b000111000_001111100_000111000,
+                0b000101000_001010100_000101000,
                 0b000000000_000000000_000010000
         );
         REGION_EDGE = new BitBoard(
@@ -129,7 +129,7 @@ public class Evaluator
         );
         REGION_CORNER_ADJACENT = new BitBoard(
                 0b000000000_100000001_010000010,
-                0b000000000_000000000_000000000,
+                0b000010000_000101000_000010000,
                 0b010000010_100000001_000000000
         );
         REGION_CORNER_BLOCK = new BitBoard(
@@ -215,9 +215,11 @@ public class Evaluator
      * 
      * @param state
      *            The state to evaluate.
+     * @param turnPlayer
+     *            The turn player.
      * @return The value of the board for black.
      */
-    public short evaluate(State state)
+    public short evaluate(State state, int turnPlayer)
     {
         state.updatePieceLists();
         
@@ -269,7 +271,7 @@ public class Evaluator
         int kingMovableSquares = m_kingLegalMoves.cardinality();
         
         // calculate the value of the board for black
-        int valueForBlack = 0;
+        int valueForBlack = -6000;
         
         // get the number of threating moves each player can make
         // int blackThreats = countThreats(state.white, state.black,
@@ -298,7 +300,14 @@ public class Evaluator
         switch (m_kingExitCorner.cardinality())
         {
             case 1: // very risky for black, forced to make a move
-                valueForBlack -= KING_CORNER_MOVE_VALUE;
+                if (turnPlayer == StateExplorer.BLACK)
+                {
+                    valueForBlack -= KING_CORNER_MOVE_VALUE;
+                }
+                else
+                {
+                    valueForBlack = -WIN_VALUE;
+                }
                 break;
             case 2: // game over for black
                 valueForBlack = -WIN_VALUE;

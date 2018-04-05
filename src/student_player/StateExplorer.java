@@ -158,6 +158,14 @@ public class StateExplorer
     }
     
     /**
+     * Gets the current state.
+     */
+    public State getState()
+    {
+        return m_currentState;
+    }
+    
+    /**
      * Gets the value of this board for the player whose turn it is.
      */
     public short evaluate()
@@ -174,7 +182,7 @@ public class StateExplorer
         }
         else
         {
-            short value = m_evaluator.evaluate(m_currentState);
+            short value = m_evaluator.evaluate(m_currentState, m_turnPlayer);
             return (m_turnPlayer == BLACK) ? value : (short)-value;
         }
     }
