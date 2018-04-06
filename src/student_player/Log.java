@@ -81,7 +81,7 @@ public class Log
             e.printStackTrace();
         }
     }
-
+    
     /**
      * Gets the logger instance or creates one if non exisis.
      */
@@ -93,7 +93,7 @@ public class Log
         }
         return m_instance;
     }
-
+    
     /**
      * Outputs a message to the log file.
      * 
@@ -104,7 +104,7 @@ public class Log
     {
         info(obj.toString());
     }
-
+    
     /**
      * Outputs a message to the log file.
      * 
@@ -113,7 +113,7 @@ public class Log
      */
     public static void info(String message)
     {
-        // logging is disabled for competition
+        // logging is disabled for competition, since it is not permitted to write files
         //instance().m_logger.info(message);
     }
 

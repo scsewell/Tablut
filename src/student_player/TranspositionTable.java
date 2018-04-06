@@ -5,6 +5,9 @@ package student_player;
  * revisited along a different branch of the search tree there is no need to
  * re-explore the same child nodes.
  * 
+ * The table is split into small chunks to avoid needing to allocate a massive
+ * single table. That causes the JVM to be rather unhappy.
+ * 
  * @author Scott Sewell, ID: 260617022
  */
 public class TranspositionTable
@@ -27,6 +30,11 @@ public class TranspositionTable
     private static final int  AGE_LEN         = 7;
     private static final int  AGE_SHIFT       = DEPTH_LEN + DEPTH_SHIFT;
     private static final long AGE_MASK        = 0b0111_1111L << AGE_SHIFT;
+    
+    /**
+     * The number of arrays the split the table into.
+     */
+    public static final int   TABLE_CHUNKS    = 64;
     
     /**
      * The cost per element stored in bytes.
@@ -58,9 +66,10 @@ public class TranspositionTable
      */
     public static final int   CUT_NODE        = 3;
     
-    private long[]            m_hashTable;
-    private long[]            m_dateTable;
-    private int               m_size;
+    private final long[][]    m_hashTable;
+    private final long[][]    m_dataTable;
+    private final int         m_capacity;
+    private final int         m_chunkCapacity;
     
     /**
      * Constructs a transposition table.
@@ -70,9 +79,11 @@ public class TranspositionTable
      */
     public TranspositionTable(int size)
     {
-        m_size = (size * 1024 * 1024) / (ELEMENT_SIZE);
-        m_hashTable = new long[m_size];
-        m_dateTable = new long[m_size];
+        m_capacity = (size * 1024 * 1024) / ELEMENT_SIZE;
+        m_chunkCapacity = m_capacity / TABLE_CHUNKS;
+        
+        m_hashTable = new long[TABLE_CHUNKS][m_chunkCapacity];
+        m_dataTable = new long[TABLE_CHUNKS][m_chunkCapacity];
     }
     
     /**
@@ -94,16 +105,19 @@ public class TranspositionTable
     public void put(long hash, int nodeType, int depth, int score, int move, int turnNumber)
     {
         // get the index to check in the table
-        int index = Math.abs((int)(hash % m_size));
+        int index = Math.abs((int)(hash % m_capacity));
+        
+        int chunkIndex = index % TABLE_CHUNKS;
+        int arrayIndex = index % m_chunkCapacity;
         
         // check if there is an element already stored in the table
-        boolean canReplace = m_hashTable[index] == 0;
+        boolean canReplace = m_hashTable[chunkIndex][arrayIndex] == 0;
         
         // if there is something in the table already only replace it if it is no longer
         // useful
         if (!canReplace)
         {
-            long data = m_dateTable[index];
+            long data = m_dataTable[chunkIndex][arrayIndex];
             
             int entryDepth = (int)(data & DEPTH_MASK) >>> DEPTH_SHIFT;
             int entryAge = (int)((data & AGE_MASK) >>> AGE_SHIFT);
@@ -114,8 +128,10 @@ public class TranspositionTable
         // if updating the entry store the hash and values
         if (canReplace)
         {
-            m_hashTable[index] = hash;
-            m_dateTable[index] = ((long)turnNumber << AGE_SHIFT) | ((long)depth << DEPTH_SHIFT) | (((long)score << SCORE_SHIFT) & SCORE_MASK) | (((long)move << MOVE_SHIFT) & MOVE_MASK) | nodeType;
+            long value = ((long)turnNumber << AGE_SHIFT) | ((long)depth << DEPTH_SHIFT) | (((long)score << SCORE_SHIFT) & SCORE_MASK) | (((long)move << MOVE_SHIFT) & MOVE_MASK) | nodeType;
+            
+            m_hashTable[chunkIndex][arrayIndex] = hash;
+            m_dataTable[chunkIndex][arrayIndex] = value;
         }
     }
     
@@ -134,13 +150,16 @@ public class TranspositionTable
     public long get(long hash, int depth, int turnNumber)
     {
         // get the index to check in the table
-        int index = Math.abs((int)(hash % m_size));
+        int index = Math.abs((int)(hash % m_capacity));
+        
+        int chunkIndex = index % TABLE_CHUNKS;
+        int arrayIndex = index % m_chunkCapacity;
         
         // check if this hash represents the same value
-        long storedHash = m_hashTable[index];
+        long storedHash = m_hashTable[chunkIndex][arrayIndex];
         if (storedHash == hash)
         {
-            return m_dateTable[index];
+            return m_dataTable[chunkIndex][arrayIndex];
         }
         return NO_VALUE;
     }

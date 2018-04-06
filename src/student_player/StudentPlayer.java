@@ -17,42 +17,42 @@ public class StudentPlayer extends TablutPlayer
     /**
      * The time allowed to think during the first turn in nanoseconds.
      */
-    private static final long        START_TURN_TIMEOUT       = (long)(9.95 * 1000000000);
+    private static final long      START_TURN_TIMEOUT       = (long)(9.95 * 1000000000);
     
     /**
      * The time allowed to think during turns following the first turn in
      * nanoseconds.
      */
-    private static final long        TURN_TIMEOUT             = (long)(1.95 * 1000000000);
+    private static final long      TURN_TIMEOUT             = (long)(1.95 * 1000000000);
     
     /**
      * The memory allocated to the transposition table in megabytes. Very important
      * to keep as large as possible.
      */
-    private static final int         TRANSPOSITION_TABLE_SIZE = 340;
+    private static final int       TRANSPOSITION_TABLE_SIZE = 455;
     
     /**
      * The maximum number of repetitions the AI will allow itself to make unless
      * there is no vaible alternative.
      */
-    private static final int         REPETITION_LIMIT         = 3;
+    private static final int       REPETITION_LIMIT         = 3;
     
     /**
      * The evalutator and weighting used to score game states.
      */
-    private static final Evaluator   m_evaluator              = new Evaluator(6, 1000, 750, 100, 8, 150, 6, 600);
+    private static final Evaluator m_evaluator              = new Evaluator(6, 1000, 750, 100, 8, 150, 6, 600);
     
-    private final TranspositionTable m_transpositionTable     = new TranspositionTable(TRANSPOSITION_TABLE_SIZE);
-    private final KillerTable        m_killers                = new KillerTable(100);
-    private final int[][]            m_legalMoves             = new int[101][StateExplorer.MAX_LEGAL_MOVES];
-    private final int[][]            m_criticalMoves          = new int[101][StateExplorer.MAX_LEGAL_MOVES];
-    private final int[][]            m_regularMoves           = new int[101][StateExplorer.MAX_LEGAL_MOVES];
-    private State                    m_lastState1             = new State();
-    private State                    m_lastState2             = new State();
-    private int                      m_lastMove1;
-    private int                      m_lastMove2;
-    private int                      m_repetitionCount;
-    private long                     m_stopTime;
+    private final TranspositionTable     m_transpositionTable = new TranspositionTable(TRANSPOSITION_TABLE_SIZE);;
+    private final KillerTable      m_killers                = new KillerTable(100);
+    private final int[][]          m_legalMoves             = new int[101][StateExplorer.MAX_LEGAL_MOVES];
+    private final int[][]          m_criticalMoves          = new int[101][StateExplorer.MAX_LEGAL_MOVES];
+    private final int[][]          m_regularMoves           = new int[101][StateExplorer.MAX_LEGAL_MOVES];
+    private State                  m_lastState1             = new State();
+    private State                  m_lastState2             = new State();
+    private int                    m_lastMove1;
+    private int                    m_lastMove2;
+    private int                    m_repetitionCount;
+    private long                   m_stopTime;
     
     /**
      * Associate this player implementation with my student ID.
@@ -77,17 +77,26 @@ public class StudentPlayer extends TablutPlayer
         
         int move = getBestMove(new StateExplorer(m_evaluator, boardState), timeout);
         
-        // extract the coordinates of the move from the packed move integer
-        int from = move & 0x7F;
-        int to = (move >> 7) & 0x7F;
-        
-        int fromRow = from / 9;
-        int fromCol = from % 9;
-        int toRow = to / 9;
-        int toCol = to % 9;
-        
-        // return the chosen move
-        return new TablutMove(fromCol, fromRow, toCol, toRow, boardState.getTurnPlayer());
+        // if we don't have a valid move for some reason, try a random move as a
+        // fallback
+        if (move > 0)
+        {
+            // extract the coordinates of the move from the packed move integer
+            int from = move & 0x7F;
+            int to = (move >> 7) & 0x7F;
+            
+            int fromRow = from / 9;
+            int fromCol = from % 9;
+            int toRow = to / 9;
+            int toCol = to % 9;
+            
+            // return the chosen move
+            return new TablutMove(fromCol, fromRow, toCol, toRow, boardState.getTurnPlayer());
+        }
+        else
+        {
+            return boardState.getRandomMove();
+        }
     }
     
     /**
@@ -122,6 +131,7 @@ public class StudentPlayer extends TablutPlayer
             if (move > 0)
             {
                 bestMove = move;
+                System.out.println(Utils.getMoveString(move));
             }
             else
             {
