@@ -32,7 +32,7 @@ public class TranspositionTable
     private static final long AGE_MASK        = 0b0111_1111L << AGE_SHIFT;
     
     /**
-     * The number of arrays the split the table into.
+     * The number of chunks the split the table into.
      */
     public static final int   TABLE_CHUNKS    = 64;
     
