@@ -197,8 +197,13 @@ public class StudentPlayer extends TablutPlayer
             
             // this entry stores more complete search information to a greater or equal
             // depth, so we can just use the stored values
-            if (entryDepth >= depth && !isRepetition(tableMove, ply))
+            if (entryDepth >= depth)
             {
+                if (isRepetition(tableMove, ply))
+                {
+                    score = 0;
+                }
+                
                 // the score represents a different value based on the node type
                 switch (TranspositionTable.ExtractNodeType(entry))
                 {
@@ -227,29 +232,34 @@ public class StudentPlayer extends TablutPlayer
         // can save the time.
         if (tableMove != 0)
         {
-            // avoid repeated boards
+            int score;
             if (!isRepetition(tableMove, ply))
             {
                 state.makeMove(tableMove);
-                int score = -pvs(state, ply + 1, depth - 1, -b, -a, true) >> 16;
+                score = -pvs(state, ply + 1, depth - 1, -b, -a, true) >> 16;
                 state.unmakeMove();
+            }
+            else
+            {
+                // assume repeated boards are draws
+                score = 0;
+            }
+            
+            // check if the move is the best found so far and update the lower bound
+            if (bestScore < score)
+            {
+                bestScore = score;
+                bestMove = tableMove;
                 
-                // check if the move is the best found so far and update the lower bound
-                if (bestScore < score)
+                if (a < bestScore)
                 {
-                    bestScore = score;
-                    bestMove = tableMove;
+                    a = bestScore;
                     
-                    if (a < bestScore)
+                    // alpha-beta prune
+                    if (a >= b)
                     {
-                        a = bestScore;
-                        
-                        // alpha-beta prune
-                        if (a >= b)
-                        {
-                            PutTTEntry(state, depth, aOrig, b, bestScore, bestMove);
-                            return packMoveScore(bestMove, bestScore);
-                        }
+                        PutTTEntry(state, depth, aOrig, b, bestScore, bestMove);
+                        return packMoveScore(bestMove, bestScore);
                     }
                 }
             }
@@ -297,7 +307,7 @@ public class StudentPlayer extends TablutPlayer
             int move = moves[i];
             
             // skip the principle variation move, it was already searched
-            if (move == tableMove || isRepetition(move, ply))
+            if (move == tableMove)
             {
                 continue;
             }
@@ -341,9 +351,19 @@ public class StudentPlayer extends TablutPlayer
             }
             
             int move = criticalMoves[(criticalMovesCount - 1) - i];
-            state.makeMove(move);
-            int score = -pvs(state, ply + 1, depth - 1, -b, -a, false) >> 16;
-            state.unmakeMove();
+            
+            int score;
+            if (!isRepetition(move, ply))
+            {
+                state.makeMove(move);
+                score = -pvs(state, ply + 1, depth - 1, -b, -a, false) >> 16;
+                state.unmakeMove();
+            }
+            else
+            {
+                // assume repeated boards are draws
+                score = 0;
+            }
             
             // check if the move is the best found so far and update the lower bound
             if (bestScore < score)
@@ -376,22 +396,29 @@ public class StudentPlayer extends TablutPlayer
                 }
                 
                 int move = regularMoves[i];
-                state.makeMove(move);
                 
-                // reduce the move when we can get away with it
-                int searchDepth = depth < 3 ? depth - 1 : depth - 2;
-                // Search moves not likely to score higher than what is already found with a
-                // null window. This means that the search will finish quickly if there is no
-                // better score, and return quickly if there is one.
-                int score = -pvs(state, ply + 1, searchDepth, -(a + 1), -a, false) >> 16;
-                // If there is a score that may be better do a full search with the normal
-                // window and search depth.
-                if (a < score && score < b && depth > 1)
+                int score;
+                if (!isRepetition(move, ply))
                 {
-                    score = -pvs(state, ply + 1, depth - 1, -b, -a, false) >> 16;
+                    state.makeMove(move);
+                    // reduce the move when we can get away with it
+                    int searchDepth = depth < 3 ? depth - 1 : depth - 2;
+                    // Search moves not likely to score higher than what is already found with a
+                    // null window. This means that the search will finish quickly if there is no
+                    // better score, and return quickly if there is one.
+                    score = -pvs(state, ply + 1, searchDepth, -(a + 1), -a, false) >> 16;
+                    // If there is a score that may be better do a full search with the normal
+                    // window and search depth.
+                    if (a < score && score < b && depth > 1)
+                    {
+                        score = -pvs(state, ply + 1, depth - 1, -b, -a, false) >> 16;
+                    }
+                    state.unmakeMove();
                 }
-                
-                state.unmakeMove();
+                else
+                {
+                    score = 0;
+                }
                 
                 // check if the move is the best found so far and update the lower bound
                 if (bestScore < score)

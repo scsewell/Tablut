@@ -275,7 +275,7 @@ public class Evaluator
         int kingMovableSquares = m_kingLegalMoves.cardinality();
         
         // calculate the value of the board for black
-        int valueForBlack = -10000;
+        int valueForBlack = -(8 * blackPieceValue);
         
         // get the number of threating moves each player can make
         valueForBlack += countThreats(state.white, state.black, m_allBlackLegalMoves) * threatValue;
