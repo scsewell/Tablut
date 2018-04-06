@@ -17,19 +17,41 @@ public class StudentPlayer extends TablutPlayer
     /**
      * The time allowed to think during the first turn in nanoseconds.
      */
-    private static final long  START_TURN_TIMEOUT   = (long)(9.95 * 1000000000);
+    private static final long        START_TURN_TIMEOUT       = (long)(9.95 * 1000000000);
     
     /**
      * The time allowed to think during turns following the first turn in
      * nanoseconds.
      */
-    private static final long  TURN_TIMEOUT         = (long)(1.95 * 1000000000);
+    private static final long        TURN_TIMEOUT             = (long)(1.95 * 1000000000);
     
-    private TranspositionTable m_transpositionTable = new TranspositionTable(340);
+    /**
+     * The memory allocated to the transposition table in megabytes. Very important
+     * to keep as large as possible.
+     */
+    private static final int         TRANSPOSITION_TABLE_SIZE = 340;
+    
+    /**
+     * The maximum number of repetitions the AI will allow itself to make unless
+     * there is no vaible alternative.
+     */
+    private static final int         REPETITION_LIMIT         = 3;
+    
+    /**
+     * The evalutator and weighting used to score game states.
+     */
+    private static final Evaluator   m_evaluator              = new Evaluator(6, 1000, 750, 100, 8, 150, 6, 600);
+    
+    private final TranspositionTable m_transpositionTable     = new TranspositionTable(TRANSPOSITION_TABLE_SIZE);
     private final KillerTable        m_killers                = new KillerTable(100);
-    private int[][]                  m_legalMoves;
-    private int[][]                  m_criticalMoves;
-    private int[][]                  m_regularMoves;
+    private final int[][]            m_legalMoves             = new int[101][StateExplorer.MAX_LEGAL_MOVES];
+    private final int[][]            m_criticalMoves          = new int[101][StateExplorer.MAX_LEGAL_MOVES];
+    private final int[][]            m_regularMoves           = new int[101][StateExplorer.MAX_LEGAL_MOVES];
+    private State                    m_lastState1             = new State();
+    private State                    m_lastState2             = new State();
+    private int                      m_lastMove1;
+    private int                      m_lastMove2;
+    private int                      m_repetitionCount;
     private long                     m_stopTime;
     
     /**
@@ -53,7 +75,7 @@ public class StudentPlayer extends TablutPlayer
         int turn = boardState.getTurnNumber();
         long timeout = (turn == 0 ? START_TURN_TIMEOUT : TURN_TIMEOUT);
         
-        int move = getBestMove(new StateExplorer(boardState), timeout);
+        int move = getBestMove(new StateExplorer(m_evaluator, boardState), timeout);
         
         // extract the coordinates of the move from the packed move integer
         int from = move & 0x7F;
@@ -79,64 +101,50 @@ public class StudentPlayer extends TablutPlayer
      */
     private int getBestMove(StateExplorer currentState, long timeout)
     {
-        Log.info(currentState);
-        
         // get the time we want to have a result by
         long startTime = System.nanoTime();
         m_stopTime = startTime + timeout;
         
-        int nodesVisited = 0;
-        m_firstCutCount = 0;
-        m_pvMoveCount = 0;
-        
-        int maxDepth = currentState.getRemainingMoves();
-        
         // clear the killer move table
         m_killers.Clear();
-        
-        // create buffers for the searched moves
-        m_legalMoves = new int[maxDepth + 1][StateExplorer.MAX_LEGAL_MOVES];
-        m_criticalMoves = new int[maxDepth + 1][StateExplorer.MAX_LEGAL_MOVES];
-        m_regularMoves = new int[maxDepth + 1][StateExplorer.MAX_LEGAL_MOVES];
         
         // Do an iterative depth search to find a good move.
         // Iterates until all nodes are explored or time is up.
         int bestMove = 0;
-        int bestScore = 0;
+        int maxDepth = currentState.getRemainingMoves();
         
         for (int depth = 1; depth <= maxDepth; depth++)
         {
-            m_nodeCount = 0;
-            
             int result = pvs(currentState, 0, depth, -Short.MAX_VALUE, Short.MAX_VALUE, true);
-            nodesVisited += m_nodeCount;
             
             // unpack the best move and use it if this iteration was completed
             int move = result & 0xFFFF;
             if (move > 0)
             {
                 bestMove = move;
-                bestScore = result >> 16;
-                Log.info(String.format(
-                        "depth: %s  move: %s  evaluation: %s  visits: %s  first cut %.5f%%  pv move %.5f%%", depth,
-                        Utils.getMoveString(bestMove), bestScore, m_nodeCount,
-                        100 * (m_firstCutCount / (float)(nodesVisited)),
-                        100 * (m_pvMoveCount / (float)(nodesVisited))));
             }
             else
             {
                 break;
             }
         }
-        Log.info(String.format("Total nodes visited: %s", nodesVisited));
-        Log.info(String.format("Time used: %s", (System.nanoTime() - startTime) / 1000000000.0));
-        Log.printMemoryUsage();
+        
+        // keep track of how many times this board has been seen
+        if (m_lastMove2 == bestMove && m_lastState2.equals(currentState.getState()))
+        {
+            m_repetitionCount++;
+        }
+        else
+        {
+            m_repetitionCount = 0;
+        }
+        m_lastState2.copy(m_lastState1);
+        m_lastState1.copy(currentState.getState());
+        m_lastMove2 = m_lastMove1;
+        m_lastMove1 = bestMove;
+        
         return bestMove;
     }
-    
-    private int m_nodeCount;
-    private int m_firstCutCount;
-    private int m_pvMoveCount;
     
     /**
      * Does a principle variation search from a given node.
@@ -161,8 +169,7 @@ public class StudentPlayer extends TablutPlayer
         // if a leaf state evaluate and return the value
         if (depth <= 0 || state.isTerminal())
         {
-            // return quiescence(state, 5, a, b);
-            return packMoveScore(0, state.evaluate());
+            return quiescence(state, ply, 10, a, b);
         }
         
         int aOrig = a;
@@ -178,11 +185,10 @@ public class StudentPlayer extends TablutPlayer
             int score = TranspositionTable.ExtractScore(entry);
             int entryDepth = TranspositionTable.ExtractDepth(entry);
             tableMove = TranspositionTable.ExtractMove(entry);
-            m_pvMoveCount++;
             
             // this entry stores more complete search information to a greater or equal
             // depth, so we can just use the stored values
-            if (entryDepth >= depth)
+            if (entryDepth >= depth && !isRepetition(tableMove, ply))
             {
                 // the score represents a different value based on the node type
                 switch (TranspositionTable.ExtractNodeType(entry))
@@ -196,21 +202,81 @@ public class StudentPlayer extends TablutPlayer
                         b = Math.min(b, score);
                         break;
                 }
-            }
-            // alpha-beta prune
-            if (a >= b)
-            {
-                return packMoveScore(tableMove, score);
+                // alpha-beta prune
+                if (a >= b)
+                {
+                    return packMoveScore(tableMove, score);
+                }
             }
         }
         
-        m_nodeCount++;
+        int bestMove = 0;
+        int bestScore = -Short.MAX_VALUE;
+        
+        // Search the pv move if we got it from the table. Most of the time this is the
+        // best move. We search it before move generation since if we get a cut-off we
+        // can save the time.
+        if (tableMove != 0)
+        {
+            // avoid repeated boards
+            if (!isRepetition(tableMove, ply))
+            {
+                state.makeMove(tableMove);
+                int score = -pvs(state, ply + 1, depth - 1, -b, -a, true) >> 16;
+                state.unmakeMove();
+                
+                // check if the move is the best found so far and update the lower bound
+                if (bestScore < score)
+                {
+                    bestScore = score;
+                    bestMove = tableMove;
+                    
+                    if (a < bestScore)
+                    {
+                        a = bestScore;
+                        
+                        // alpha-beta prune
+                        if (a >= b)
+                        {
+                            PutTTEntry(state, depth, aOrig, b, bestScore, bestMove);
+                            return packMoveScore(bestMove, bestScore);
+                        }
+                    }
+                }
+            }
+        }
         
         // get all legal moves for this state
         int[] moves = m_legalMoves[ply];
         int moveCount = state.getAllLegalMoves(moves);
         
-        // group the moves
+        // if at a pv node, there is no best move in the table, and there are many plys
+        // remaining to search, do a reduced search to find a good short first move to
+        // check.
+        int IIDMove = 0;
+        if (isPVNode && tableMove == 0 && depth > 3)
+        {
+            int maxDepth = depth - 2;
+            for (int d = 1; d <= maxDepth; d++)
+            {
+                int best = -Short.MAX_VALUE;
+                for (int i = 0; i < moveCount; i++)
+                {
+                    int move = moves[i];
+                    state.makeMove(move);
+                    int score = -pvs(state, ply + 1, d - 1, -b, -a, IIDMove == move) >> 16;
+                    state.unmakeMove();
+                    
+                    if (best < score)
+                    {
+                        best = score;
+                        IIDMove = move;
+                    }
+                }
+            }
+        }
+        
+        // sort the moves
         int[] criticalMoves = m_criticalMoves[ply];
         int[] regularMoves = m_regularMoves[ply];
         int criticalMovesCount = 0;
@@ -220,11 +286,18 @@ public class StudentPlayer extends TablutPlayer
         {
             // get a move
             int move = moves[i];
+            
+            // skip the principle variation move, it was already searched
+            if (move == tableMove || isRepetition(move, ply))
+            {
+                continue;
+            }
+            
             // sets bits in the move indicating the effect of the move
             int classifiedMove = state.classifyMove(move);
             
-            // mark the principle variation move
-            if (move == tableMove)
+            // mark the internal iterative deepening move
+            if (move == IIDMove)
             {
                 classifiedMove |= (1 << 28);
             }
@@ -242,37 +315,25 @@ public class StudentPlayer extends TablutPlayer
             }
             else
             {
-                regularMoves[regularMovesCount++] = classifiedMove;
+                regularMoves[regularMovesCount++] = move;
             }
         }
         
-        // sort any important moves and place them first to get more prunes
         Arrays.sort(criticalMoves, 0, criticalMovesCount);
         
-        // iterate over all legal moves to find the best value among the child nodes
-        int bestMove = 0;
-        int bestScore = -Short.MAX_VALUE;
+        // search the best moves
         boolean prune = false;
         
-        // search the best moves
         for (int i = 0; i < criticalMovesCount; i++)
         {
-            // if time is up we need to stop searching, and we shouldn't use incomplete
-            // search results
             if (System.nanoTime() > m_stopTime)
             {
                 return 0;
             }
             
-            // get the next move
             int move = criticalMoves[(criticalMovesCount - 1) - i];
-            boolean isPVMove = (move & 0x3FFF) == tableMove;
-            
-            // apply the move to the board
             state.makeMove(move);
-            // do a search to find the score of the node
-            int score = -pvs(state, ply + 1, depth - 1, -b, -a, isPVMove) >> 16;
-            // undo the move
+            int score = -pvs(state, ply + 1, depth - 1, -b, -a, false) >> 16;
             state.unmakeMove();
             
             // check if the move is the best found so far and update the lower bound
@@ -300,28 +361,27 @@ public class StudentPlayer extends TablutPlayer
         {
             for (int i = 0; i < regularMovesCount; i++)
             {
-                // if time is up we need to stop searching, and we shouldn't use incomplete
-                // search results
                 if (System.nanoTime() > m_stopTime)
                 {
                     return 0;
                 }
                 
-                // get the next move
                 int move = regularMoves[i];
-                // apply the move to the board
                 state.makeMove(move);
+                
+                // reduce the move when we can get away with it
+                int searchDepth = depth < 3 ? depth - 1 : depth - 2;
                 // Search moves not likely to score higher than what is already found with a
                 // null window. This means that the search will finish quickly if there is no
                 // better score, and return quickly if there is one.
-                int score = -pvs(state, ply + 1, depth - 1, -(a + 1), -a, false) >> 16;
+                int score = -pvs(state, ply + 1, searchDepth, -(a + 1), -a, false) >> 16;
                 // If there is a score that may be better do a full search with the normal
-                // window.
+                // window and search depth.
                 if (a < score && score < b && depth > 1)
                 {
                     score = -pvs(state, ply + 1, depth - 1, -b, -a, false) >> 16;
                 }
-                // undo the move
+                
                 state.unmakeMove();
                 
                 // check if the move is the best found so far and update the lower bound
@@ -345,15 +405,10 @@ public class StudentPlayer extends TablutPlayer
             }
         }
         
-        if (prune && (bestMove >> 14) > 0)
-        {
-            m_firstCutCount++;
-        }
-        
         // update transposition table
         PutTTEntry(state, depth, aOrig, b, bestScore, bestMove);
         
-        // update killer moves if a non-capture move
+        // update killer and history tables with move if a non-capture
         if (prune && ((bestMove >> 25) & 0x3) == 0)
         {
             m_killers.add(ply, bestMove);
@@ -361,6 +416,109 @@ public class StudentPlayer extends TablutPlayer
         
         // return best score and move
         return packMoveScore(bestMove, bestScore);
+    }
+    
+    /**
+     * Does a quescencse search from a given node.
+     * 
+     * @param state
+     *            The current search node.
+     * @param ply
+     *            The ply of the node.
+     * @param depth
+     *            The depth left until the cutoff.
+     * @param a
+     *            The alpha value.
+     * @param b
+     *            The beta value.
+     * @return The value of this node in the most significant 16 bits.
+     */
+    private int quiescence(StateExplorer state, int ply, int depth, int a, int b)
+    {
+        // calculate the standing pat score
+        int eval = state.evaluate();
+        
+        // if a leaf state evaluate and return the value
+        if (depth <= 0 || state.isTerminal())
+        {
+            return packMoveScore(0, eval);
+        }
+        
+        if (eval >= b)
+        {
+            return packMoveScore(0, eval);
+        }
+        
+        // get all legal moves for this state
+        int[] moves = m_legalMoves[ply];
+        int moveCount = state.getAllLegalMoves(moves);
+        
+        // get loud moves
+        int[] criticalMoves = m_criticalMoves[ply];
+        int criticalMovesCount = 0;
+        
+        for (int i = 0; i < moveCount; i++)
+        {
+            int move = state.classifyMove(moves[i]);
+            
+            // if the move is important, place it in the list to sort and place in front
+            if ((move >>> 14) != 0)
+            {
+                criticalMoves[criticalMovesCount++] = move;
+            }
+        }
+        
+        // if the state is quiet return the evaluation
+        if (criticalMovesCount == 0)
+        {
+            return packMoveScore(0, eval);
+        }
+        
+        if (a < eval)
+        {
+            a = eval;
+        }
+        
+        // sort any important moves and place them first to get more prunes
+        Arrays.sort(criticalMoves, 0, criticalMovesCount);
+        
+        // search the best moves
+        int bestScore = -Short.MAX_VALUE;
+        for (int i = 0; i < criticalMovesCount; i++)
+        {
+            // if time is up we need to stop searching, and we shouldn't use incomplete
+            // search results
+            if (System.nanoTime() > m_stopTime)
+            {
+                return -Short.MAX_VALUE;
+            }
+            
+            // get the next move
+            int move = criticalMoves[(criticalMovesCount - 1) - i];
+            // apply the move to the board
+            state.makeMove(move);
+            // do a search to find the score of the node
+            int score = -quiescence(state, ply + 1, depth - 1, -b, -a) >> 16;
+            // undo the move
+            state.unmakeMove();
+            
+            // check if the move is the best found so far and update the lower bound
+            if (bestScore < score)
+            {
+                bestScore = score;
+                
+                if (a < bestScore)
+                {
+                    a = bestScore;
+                    // alpha-beta prune
+                    if (a >= b)
+                    {
+                        break;
+                    }
+                }
+            }
+        }
+        return packMoveScore(0, bestScore);
     }
     
     /**
@@ -399,84 +557,15 @@ public class StudentPlayer extends TablutPlayer
     }
     
     /**
-     * Contains a small test.
+     * Checks if a move would be a repetition loop.
+     * 
+     * @param state
+     *            The current move to check if repeated.
+     * @param ply
+     *            The current ply of the search.
      */
-    public static void main(String[] args)
+    private boolean isRepetition(int move, int ply)
     {
-        // benchmark for state exploration
-        long startTime = System.nanoTime();
-        Log.info(Test(new TablutBoardState(), 3));
-        Log.info(String.format("TablutBoardState, time used: %s", (System.nanoTime() - startTime) / 1000000000.0));
-        
-        startTime = System.nanoTime();
-        Log.info(Test(new StateExplorer(new TablutBoardState()), 3));
-        Log.info(String.format("StateExplorer, time used: %s", (System.nanoTime() - startTime) / 1000000000.0));
-        
-        // test case
-        BitBoard black = new BitBoard();
-        black.set(0, 3);
-        black.set(0, 4);
-        black.set(0, 5);
-        black.set(2, 2);
-        black.set(3, 0);
-        black.set(3, 2);
-        black.set(4, 0);
-        black.set(4, 7);
-        black.set(4, 8);
-        black.set(5, 0);
-        black.set(5, 8);
-        black.set(7, 4);
-        black.set(8, 2);
-        black.set(8, 4);
-        black.set(8, 5);
-        
-        BitBoard white = new BitBoard();
-        white.set(2, 4);
-        white.set(4, 2);
-        white.set(4, 3);
-        white.set(4, 5);
-        white.set(5, 1);
-        white.set(5, 6);
-        white.set(6, 2);
-        
-        //StateExplorer s = new StateExplorer(2, new State(black, white, 40));
-        StateExplorer s = new StateExplorer(new TablutBoardState());
-        
-        StudentPlayer player = new StudentPlayer();
-        s.makeMove(player.getBestMove(s, TURN_TIMEOUT));
-    }
-    
-    private static int Test(StateExplorer state, int depth)
-    {
-        int count = 1;
-        if (depth == 0)
-        {
-            return count;
-        }
-        int[] moves = new int[StateExplorer.MAX_LEGAL_MOVES];
-        int moveCount = state.getAllLegalMoves(moves);
-        for (int i = 0; i < moveCount; i++)
-        {
-            state.makeMove(moves[i]);
-            count += Test(state, depth - 1);
-            state.unmakeMove();
-        }
-        return count;
-    }
-    
-    private static int Test(TablutBoardState state, int depth)
-    {
-        int count = 1;
-        if (depth == 0)
-        {
-            return count;
-        }
-        for (TablutMove move : state.getAllLegalMoves())
-        {
-            TablutBoardState child = (TablutBoardState)state.clone();
-            child.processMove(move);
-            count += Test(child, depth - 1);
-        }
-        return count;
+        return m_repetitionCount > REPETITION_LIMIT && ply == 0 && (move & 0x3FFF) == m_lastMove2;
     }
 }

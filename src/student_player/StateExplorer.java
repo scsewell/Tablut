@@ -56,7 +56,7 @@ public class StateExplorer
         PLAYER_HASH = rand.nextLong();
     }
     
-    private final Evaluator m_evaluator = new Evaluator();
+    private final Evaluator m_evaluator;
     private final State[]   m_stack;
     private final int       m_startTurn;
     
@@ -68,13 +68,17 @@ public class StateExplorer
     /**
      * Initializes the state explorer with a given root state.
      * 
+     * @param evaluator
+     *            The evaluator used to evalute boards.
      * @param turn
      *            The current turn number.
      * @param state
      *            The board state.
      */
-    public StateExplorer(int turn, State state)
+    public StateExplorer(Evaluator evaluator, int turn, State state)
     {
+        m_evaluator = evaluator;
+        
         // make sure the turn number is valid and use it to get the current turn's
         // player
         m_turnNumber = Math.min(Math.max(turn, 1), MAX_TURNS) - 1;
@@ -89,11 +93,15 @@ public class StateExplorer
     /**
      * Initializes the state explorer with a given root state.
      * 
+     * @param evaluator
+     *            The evaluator used to evalute boards.
      * @param state
      *            The state to initialize from.
      */
-    public StateExplorer(TablutBoardState state)
+    public StateExplorer(Evaluator evaluator, TablutBoardState state)
     {
+        m_evaluator = evaluator;
+        
         // increment turn with every move rather then every other move
         m_turnNumber = (2 * state.getTurnNumber()) + state.getTurnPlayer();
         m_startTurn = m_turnNumber;
@@ -182,8 +190,7 @@ public class StateExplorer
         }
         else
         {
-            short value = m_evaluator.evaluate(m_currentState, m_turnPlayer);
-            return (m_turnPlayer == BLACK) ? value : (short)-value;
+            return m_evaluator.evaluate(m_currentState, m_turnPlayer);
         }
     }
     

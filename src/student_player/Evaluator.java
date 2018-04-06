@@ -10,101 +10,61 @@ public class Evaluator
     /**
      * The minimum utility value of a win.
      */
-    public static final short    WIN_VALUE                          = 30000;
+    public static final short     WIN_VALUE                          = 30000;
     
     /**
      * The mapping from piece type and location to net value.
      */
-    public static final int[][]  SQUARE_VALUES;
+    public static final int[][]   SQUARE_VALUES;
     
     /**
      * The diamond shaped region at the center of the board where white starts.
      */
-    public static final BitBoard REGION_CENTER;
-    public static final int      REGION_CENTER_VALUE_BLACK          = -3;
-    public static final int      REGION_CENTER_VALUE_WHITE          = -2;
-    public static final int      REGION_CENTER_VALUE_KING           = 0;
+    private static final BitBoard REGION_CENTER;
+    private static final int      REGION_CENTER_VALUE_BLACK          = -3;
+    private static final int      REGION_CENTER_VALUE_WHITE          = -2;
+    private static final int      REGION_CENTER_VALUE_KING           = 0;
     
     /**
      * The regions of the board at the middle of the edges of the board.
      */
-    public static final BitBoard REGION_EDGE;
-    public static final int      REGION_EDGE_VALUE_BLACK            = -3;
-    public static final int      REGION_EDGE_VALUE_WHITE            = -2;
-    public static final int      REGION_EDGE_VALUE_KING             = 5;
+    private static final BitBoard REGION_EDGE;
+    private static final int      REGION_EDGE_VALUE_BLACK            = -3;
+    private static final int      REGION_EDGE_VALUE_WHITE            = -2;
+    private static final int      REGION_EDGE_VALUE_KING             = 5;
     
     /**
      * The region between the edges of the board and the center region.
      */
-    public static final BitBoard REGION_CORE;
-    public static final int      REGION_CORE_VALUE_BLACK            = 3;
-    public static final int      REGION_CORE_VALUE_WHITE            = 3;
-    public static final int      REGION_CORE_VALUE_KING             = 3;
+    private static final BitBoard REGION_CORE;
+    private static final int      REGION_CORE_VALUE_BLACK            = 3;
+    private static final int      REGION_CORE_VALUE_WHITE            = 3;
+    private static final int      REGION_CORE_VALUE_KING             = 3;
     
     /**
      * The board squares vertically or horizontally adjacent to the corner squares.
      */
-    public static final BitBoard REGION_CORNER_ADJACENT;
-    public static final int      REGION_CORNER_ADJACENT_VALUE_BLACK = -6;
-    public static final int      REGION_CORNER_ADJACENT_VALUE_WHITE = -15;
-    public static final int      REGION_CORNER_ADJACENT_VALUE_KING  = -10;
+    private static final BitBoard REGION_CORNER_ADJACENT;
+    private static final int      REGION_CORNER_ADJACENT_VALUE_BLACK = -6;
+    private static final int      REGION_CORNER_ADJACENT_VALUE_WHITE = -15;
+    private static final int      REGION_CORNER_ADJACENT_VALUE_KING  = -10;
     
     /**
      * The squares vertically or horizontally spaced one square away from the corner
      * squares.
      */
-    public static final BitBoard REGION_CORNER_BLOCK;
-    public static final int      REGION_CORNER_BLOCK_VALUE_BLACK    = 10;
-    public static final int      REGION_CORNER_BLOCK_VALUE_WHITE    = 0;
-    public static final int      REGION_CORNER_BLOCK_VALUE_KING     = 6;
+    private static final BitBoard REGION_CORNER_BLOCK;
+    private static final int      REGION_CORNER_BLOCK_VALUE_BLACK    = 10;
+    private static final int      REGION_CORNER_BLOCK_VALUE_WHITE    = 0;
+    private static final int      REGION_CORNER_BLOCK_VALUE_KING     = 6;
     
     /**
      * The board squares diagonally adjacent to the corner squares.
      */
-    public static final BitBoard REGION_CORNER_DIAGONAL;
-    public static final int      REGION_CORNER_DIAGONAL_VALUE_BLACK = 10;
-    public static final int      REGION_CORNER_DIAGONAL_VALUE_WHITE = 2;
-    public static final int      REGION_CORNER_DIAGONAL_VALUE_KING  = 5;
-    
-    /**
-     * The weighting of the square values in the evaluation.
-     */
-    public static final int      SQUARE_VALUE_MULTIPIER             = 5;
-    
-    /**
-     * The value of the black pieces values.
-     */
-    public static final int      BLACK_PIECE_VALUE                  = 1200;
-    
-    /**
-     * The value of white pieces.
-     */
-    public static final int      WHITE_PIECE_VALUE                  = 1000;
-    
-    /**
-     * The value of moves that could capture a piece.
-     */
-    public static final int      THREAT_VALUE                       = 330;
-    
-    /**
-     * The value added to a peice per move able to be made.
-     */
-    public static final int      MOVE_VALUE                         = 5;
-    
-    /*
-     * The value of the each square closer a black piece is to the king.
-     */
-    public static final int      KING_DISTANCE_VALUE                = 18;
-    
-    /**
-     * The value added to the king per move able to be made.
-     */
-    public static final int      KING_MOVE_VALUE                    = 150;
-    
-    /**
-     * The value of an unblocked view of a corner for the king.
-     */
-    public static final int      KING_CORNER_MOVE_VALUE             = 700;
+    private static final BitBoard REGION_CORNER_DIAGONAL;
+    private static final int      REGION_CORNER_DIAGONAL_VALUE_BLACK = 10;
+    private static final int      REGION_CORNER_DIAGONAL_VALUE_WHITE = 2;
+    private static final int      REGION_CORNER_DIAGONAL_VALUE_KING  = 5;
     
     /**
      * Static constructor.
@@ -186,20 +146,64 @@ public class Evaluator
         }
     }
     
-    private BitBoard[] m_blackLegalMoves    = new BitBoard[16];
-    private BitBoard   m_allBlackLegalMoves = new BitBoard();
-    private BitBoard[] m_whiteLegalMoves    = new BitBoard[8];
-    private BitBoard   m_kingLegalMoves     = new BitBoard();
-    private BitBoard   m_allWhiteLegalMoves = new BitBoard();
-    private BitBoard   m_pieces             = new BitBoard();
-    private BitBoard   m_piecesReflected    = new BitBoard();
-    private BitBoard   m_kingExitCorner     = new BitBoard();
+    private final int        squareValueMultiplier;
+    private final int        blackPieceValue;
+    private final int        whitePieceValue;
+    private final int        threatValue;
+    private final int        moveValue;
+    private final int        kingMoveValue;
+    private final int        kingDistanceValue;
+    private final int        kingCornerMoveValue;
+    
+    private final BitBoard[] m_blackLegalMoves    = new BitBoard[16];
+    private final BitBoard   m_allBlackLegalMoves = new BitBoard();
+    private final BitBoard[] m_whiteLegalMoves    = new BitBoard[8];
+    private final BitBoard   m_kingLegalMoves     = new BitBoard();
+    private final BitBoard   m_allWhiteLegalMoves = new BitBoard();
+    private final BitBoard   m_pieces             = new BitBoard();
+    private final BitBoard   m_piecesReflected    = new BitBoard();
+    private final BitBoard   m_kingExitCorner     = new BitBoard();
+    private final BitBoard   m_threats            = new BitBoard();
     
     /**
-     * Constructor.
+     * Contructs a new Evaluator instance with the provided weightings
+     * 
+     * @param squareValue
+     *            The weighting of the square positional value.
+     * @param blackPieceValue
+     *            The value of each black piece.
+     * @param whitePieceValue
+     *            The value of each white piece.
+     * @param threatValue
+     *            The value of moves that could capture a piece.
+     * @param moveValue
+     *            The value added to a peice per move able to be made.
+     * @param kingMoveValue
+     *            The value added to the king per move able to be made.
+     * @param kingDistanceValue
+     *            The value of the each square closer a black piece is to the king.
+     * @param kingCornerMoveValue
+     *            The value of an unblocked view of a corner for the king.
      */
-    public Evaluator()
+    public Evaluator(
+        int squareValue,
+        int blackPieceValue,
+        int whitePieceValue,
+        int threatValue,
+        int moveValue,
+        int kingMoveValue,
+        int kingDistanceValue,
+        int kingCornerMoveValue)
     {
+        this.squareValueMultiplier = squareValue;
+        this.blackPieceValue = blackPieceValue;
+        this.whitePieceValue = whitePieceValue;
+        this.threatValue = threatValue;
+        this.moveValue = moveValue;
+        this.kingMoveValue = kingMoveValue;
+        this.kingDistanceValue = kingDistanceValue;
+        this.kingCornerMoveValue = kingCornerMoveValue;
+        
         for (int i = 0; i < m_blackLegalMoves.length; i++)
         {
             m_blackLegalMoves[i] = new BitBoard();
@@ -271,58 +275,51 @@ public class Evaluator
         int kingMovableSquares = m_kingLegalMoves.cardinality();
         
         // calculate the value of the board for black
-        int valueForBlack = -6000;
+        int valueForBlack = -10000;
         
         // get the number of threating moves each player can make
-        // int blackThreats = countThreats(state.white, state.black,
-        // m_allBlackLegalMoves);
-        // int whiteThreats = countThreats(state.black, state.white,
-        // m_allWhiteLegalMoves);
-        // valueForBlack += (blackThreats - whiteThreats) * THREAT_VALUE;
+        valueForBlack += countThreats(state.white, state.black, m_allBlackLegalMoves) * threatValue;
+        valueForBlack -= countThreats(state.black, state.white, m_allWhiteLegalMoves) * threatValue;
         
         // black does better when it's pieces are near to the king
-        valueForBlack -= blackKingDistance * KING_DISTANCE_VALUE;
+        valueForBlack -= blackKingDistance * kingDistanceValue;
         
         // the ability to make more moves is valuable, especially for the king
-        valueForBlack += (blackMovableSquares * MOVE_VALUE);
-        valueForBlack -= (whiteMovableSquares * MOVE_VALUE) + (kingMovableSquares * KING_MOVE_VALUE);
+        valueForBlack += (blackMovableSquares * moveValue);
+        valueForBlack -= (whiteMovableSquares * moveValue) + (kingMovableSquares * kingMoveValue);
         
         // get the value for the pieces based on their current squares
-        valueForBlack += (blackSquareValues - whiteSquareValues) * SQUARE_VALUE_MULTIPIER;
+        valueForBlack += (blackSquareValues - whiteSquareValues) * squareValueMultiplier;
         
         // get the piece difference
-        valueForBlack += state.blackCount * BLACK_PIECE_VALUE;
-        valueForBlack -= state.whiteCount * WHITE_PIECE_VALUE;
+        valueForBlack += state.blackCount * blackPieceValue;
+        valueForBlack -= state.whiteCount * whitePieceValue;
         
         // black does poorly if the king can reach a corner
         m_kingExitCorner.copy(m_kingLegalMoves);
         m_kingExitCorner.and(BitBoardConsts.corners);
         switch (m_kingExitCorner.cardinality())
         {
-            case 1: // very risky for black, forced to make a move
+            case 1:
                 if (turnPlayer == StateExplorer.BLACK)
                 {
-                    valueForBlack -= KING_CORNER_MOVE_VALUE;
+                    // very risky for black, forced to make a move
+                    valueForBlack -= kingCornerMoveValue;
                 }
                 else
                 {
+                    // black loses next turn
                     valueForBlack = -WIN_VALUE;
                 }
                 break;
-            case 2: // game over for black
+            case 2:
+                // black loses next turn
                 valueForBlack = -WIN_VALUE;
                 break;
         }
         
-        // check that the value is in the required range
-        if (valueForBlack < -Short.MAX_VALUE || Short.MAX_VALUE < valueForBlack)
-        {
-            Log.info("Board evaluation is not in range: " + valueForBlack);
-        }
-        return (short)valueForBlack;
+        return (turnPlayer == StateExplorer.BLACK) ? (short)valueForBlack : (short)-valueForBlack;
     }
-    
-    private BitBoard m_threats = new BitBoard();
     
     /**
      * Counts the number of moves that the opponent can make to remove a piece.
@@ -331,24 +328,28 @@ public class Evaluator
     {
         int threatCount = 0;
         
+        // potential captures from squares right
         m_threats.copy(pieces);
         m_threats.shiftLeftOne();
         m_threats.and(opponentPieces);
         m_threats.shiftRightTwo();
         threatCount += BitBoard.andCount(m_threats, opponentMoves);
-        
+
+        // potential captures from squares left
         m_threats.copy(pieces);
         m_threats.shiftRightOne();
         m_threats.and(opponentPieces);
         m_threats.shiftLeftTwo();
         threatCount += BitBoard.andCount(m_threats, opponentMoves);
-        
+
+        // potential captures from squares above
         m_threats.copy(pieces);
         m_threats.shiftUpOne();
         m_threats.and(opponentPieces);
         m_threats.shiftDownTwo();
         threatCount += BitBoard.andCount(m_threats, opponentMoves);
-        
+
+        // potential captures from squares below
         m_threats.copy(pieces);
         m_threats.shiftDownOne();
         m_threats.and(opponentPieces);

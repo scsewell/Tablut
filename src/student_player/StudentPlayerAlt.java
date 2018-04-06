@@ -37,6 +37,11 @@ public class StudentPlayerAlt extends TablutPlayer
      */
     private static final int         REPETITION_LIMIT         = 3;
     
+    /**
+     * The evalutator and weighting used to score game states.
+     */
+    private static final Evaluator   m_evaluator              = new Evaluator(6, 1000, 750, 100, 8, 150, 6, 600);
+    
     private final TranspositionTable m_transpositionTable     = new TranspositionTable(TRANSPOSITION_TABLE_SIZE);
     private final KillerTable        m_killers                = new KillerTable(100);
     private final int[][]            m_legalMoves             = new int[101][StateExplorer.MAX_LEGAL_MOVES];
@@ -70,7 +75,7 @@ public class StudentPlayerAlt extends TablutPlayer
         int turn = boardState.getTurnNumber();
         long timeout = (turn == 0 ? START_TURN_TIMEOUT : TURN_TIMEOUT);
         
-        int move = getBestMove(new StateExplorer(boardState), timeout);
+        int move = getBestMove(new StateExplorer(m_evaluator, boardState), timeout);
         
         // extract the coordinates of the move from the packed move integer
         int from = move & 0x7F;
@@ -300,7 +305,7 @@ public class StudentPlayerAlt extends TablutPlayer
             }
         }
         
-        // group the moves
+        // sort the moves
         int[] criticalMoves = m_criticalMoves[ply];
         int[] regularMoves = m_regularMoves[ply];
         int criticalMovesCount = 0;
@@ -343,11 +348,11 @@ public class StudentPlayerAlt extends TablutPlayer
             }
         }
         
-        // sort moves and place them first to get more prunes
         Arrays.sort(criticalMoves, 0, criticalMovesCount);
-        boolean prune = false;
         
         // search the best moves
+        boolean prune = false;
+        
         for (int i = 0; i < criticalMovesCount; i++)
         {
             if (System.nanoTime() > m_stopTime)
@@ -512,7 +517,7 @@ public class StudentPlayerAlt extends TablutPlayer
             // search results
             if (System.nanoTime() > m_stopTime)
             {
-                return 0;
+                return -Short.MAX_VALUE;
             }
             
             // get the next move
@@ -596,81 +601,9 @@ public class StudentPlayerAlt extends TablutPlayer
      */
     public static void main(String[] args)
     {
-        // benchmark for state exploration
-        long startTime = System.nanoTime();
-        Log.info(Test(new TablutBoardState(), 3));
-        Log.info(String.format("TablutBoardState, time used: %s", (System.nanoTime() - startTime) / 1000000000.0));
-        
-        startTime = System.nanoTime();
-        Log.info(Test(new StateExplorer(new TablutBoardState()), 3));
-        Log.info(String.format("StateExplorer, time used: %s", (System.nanoTime() - startTime) / 1000000000.0));
-        
-        // test case
-        BitBoard black = new BitBoard();
-        // black.set(0, 3);
-        black.set(0, 4);
-        black.set(0, 5);
-        black.set(2, 2);
-        black.set(3, 0);
-        black.set(3, 2);
-        black.set(4, 0);
-        black.set(4, 7);
-        black.set(4, 8);
-        black.set(5, 0);
-        black.set(5, 8);
-        black.set(7, 4);
-        black.set(8, 2);
-        black.set(8, 4);
-        black.set(8, 5);
-        black.set(1, 1);
-        
-        BitBoard white = new BitBoard();
-        white.set(2, 4);
-        white.set(4, 2);
-        white.set(4, 3);
-        white.set(4, 5);
-        white.set(5, 1);
-        white.set(5, 6);
-        white.set(6, 2);
-        
-        // StateExplorer s = new StateExplorer(1, new State(black, white, 41));
-        StateExplorer s = new StateExplorer(new TablutBoardState());
+        StateExplorer s = new StateExplorer(m_evaluator, new TablutBoardState());
         
         StudentPlayerAlt player = new StudentPlayerAlt();
         s.makeMove(player.getBestMove(s, 5 * TURN_TIMEOUT));
-    }
-    
-    private static int Test(StateExplorer state, int depth)
-    {
-        int count = 1;
-        if (depth == 0)
-        {
-            return count;
-        }
-        int[] moves = new int[StateExplorer.MAX_LEGAL_MOVES];
-        int moveCount = state.getAllLegalMoves(moves);
-        for (int i = 0; i < moveCount; i++)
-        {
-            state.makeMove(moves[i]);
-            count += Test(state, depth - 1);
-            state.unmakeMove();
-        }
-        return count;
-    }
-    
-    private static int Test(TablutBoardState state, int depth)
-    {
-        int count = 1;
-        if (depth == 0)
-        {
-            return count;
-        }
-        for (TablutMove move : state.getAllLegalMoves())
-        {
-            TablutBoardState child = (TablutBoardState)state.clone();
-            child.processMove(move);
-            count += Test(child, depth - 1);
-        }
-        return count;
     }
 }
